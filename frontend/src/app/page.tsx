@@ -38,6 +38,7 @@ import {
 // Tipe Data
 interface Merchant {
   id: number;
+  owner_id?: number;
   name: string;
   address: string;
   category: string;
@@ -425,6 +426,33 @@ export default function SecureMultiplatformPlatform() {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleDeleteMenu = async (productId: number) => {
+    if (!token) return;
+    if (!confirm("Apakah Anda yakin ingin menghapus menu ini?")) return;
+    
+    try {
+      const res = await fetch(`${API_URL}/products/${productId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      
+      if (res.ok) {
+        alert("Menu berhasil dihapus!");
+        if (myMerchant) {
+          fetchMyProducts(myMerchant.id);
+        }
+      } else {
+        const data = await res.json();
+        alert(data.error || "Gagal menghapus menu.");
+      }
+    } catch (err) {
+      console.error("Delete menu error:", err);
+      alert("Koneksi gagal: " + (err instanceof Error ? err.message : String(err)));
     }
   };
 
