@@ -180,9 +180,9 @@ export default function SecureMultiplatformPlatform() {
   const [isRawIp, setIsRawIp] = useState(false);
   const [gpsProgress, setGpsProgress] = useState<Record<number, number>>({});
 
-  const API_URL = typeof window !== "undefined" ? `http://${window.location.hostname}:8080/api` : "http://localhost:8080/api";
-  const BACKEND_BASE = typeof window !== "undefined" ? `http://${window.location.hostname}:8080` : "http://localhost:8080";
-  const DEFAULT_CLIENT_ID = "942189841866-lk7pi6eilk9i10km1er57voe1360bfq4.apps.googleusercontent.com";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== "undefined" ? `http://${window.location.hostname}:8080/api` : "http://localhost:8080/api");
+  const BACKEND_BASE = process.env.NEXT_PUBLIC_BACKEND_BASE || (typeof window !== "undefined" ? `http://${window.location.hostname}:8080` : "http://localhost:8080");
+  const DEFAULT_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "942189841866-lk7pi6eilk9i10km1er57voe1360bfq4.apps.googleusercontent.com";
 
   const checkApi = async () => {
     try {
