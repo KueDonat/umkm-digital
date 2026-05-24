@@ -1795,13 +1795,12 @@ fun GoogleAccountSelectorDialog(
 // ==================== DIALOG COMPONENT: LIVE GPS TRACKING MAP ====================
 @Composable
 fun GpsTrackingMap(orderId: Int) {
-    var progress by remember { mutableStateOf(0.05f) }
+    var progress by remember { mutableStateOf(0.0f) }
     LaunchedEffect(Unit) {
-        while (progress < 0.95f) {
+        while (progress < 1.0f) {
             kotlinx.coroutines.delay(1200)
-            progress += 0.045f
+            progress = Math.min(1.0f, progress + 0.05f)
         }
-        progress = 0.95f
     }
 
     val distance = Math.max(0, ((1f - progress) * 800).toInt())
@@ -1890,12 +1889,10 @@ fun GpsTrackingMap(orderId: Int) {
                 }
             }
 
-            // Moving Courier Icon (Horizontal Translate)
+            // Moving Courier Icon (Horizontal Bias Translate)
             Box(
                 modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .fillMaxWidth(0.7f)
-                    .offset(x = (20.dp + ((progress * 180).toInt()).dp))
+                    .align(androidx.compose.ui.BiasAlignment(horizontalBias = -0.8f + (progress * 1.6f), verticalBias = 0f))
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
@@ -1943,7 +1940,7 @@ fun GpsTrackingMap(orderId: Int) {
                 Column {
                     Text("ESTIMASI KEDATANGAN", fontSize = 7.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
                     Text(
-                        text = if (progress >= 0.95f) "Tiba di Lokasi Anda!" else "~$eta menit lagi",
+                        text = if (progress >= 1.0f) "Tiba di Lokasi Anda!" else "~$eta menit lagi",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -1954,7 +1951,7 @@ fun GpsTrackingMap(orderId: Int) {
             Column(horizontalAlignment = Alignment.End) {
                 Text("JARAK SISA", fontSize = 7.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
                 Text(
-                    text = if (progress >= 0.95f) "Selesai" else "$distance meter",
+                    text = if (progress >= 1.0f) "Tiba!" else "$distance meter",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF818CF8)

@@ -66,6 +66,15 @@ interface Order {
   shipping_address: string;
   proof_of_delivery: string;
   created_at: string;
+  notes?: string;
+  toppings?: string;
+  tax?: number;
+  delivery_fee?: number;
+  app_fee?: number;
+  merchant_rating?: number;
+  merchant_review?: string;
+  courier_rating?: number;
+  buyer_rating?: number;
 }
 
 interface ChatMessage {
@@ -144,8 +153,208 @@ export default function SecureMultiplatformPlatform() {
 
   // States Pembeli / E-Commerce (GoFood)
   const [searchStoreQuery, setSearchStoreQuery] = useState("");
-  const [cart, setCart] = useState<{ product: Product; qty: number }[]>([]);
+  const [cart, setCart] = useState<{ product: Product; qty: number; toppings?: string; notes?: string }[]>([]);
   const [shippingAddress, setShippingAddress] = useState("");
+  
+  // 1A. STATES BARU FITUR EVALUASI & RATING
+  const [customAlert, setCustomAlert] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+  } | null>(null);
+
+  const [selectedProductForOrder, setSelectedProductForOrder] = useState<Product | null>(null);
+  const [orderQty, setOrderQty] = useState(1);
+  const [selectedTopping, setSelectedTopping] = useState("Polos");
+  const [sellerNote, setSellerNote] = useState("");
+
+  const [leafletLoaded, setLeafletLoaded] = useState(false);
+  const [ratingOrder, setRatingOrder] = useState<Order | null>(null);
+  const [ratingRestoVal, setRatingRestoVal] = useState(5);
+  const [ratingCourierVal, setRatingCourierVal] = useState(5);
+  const [ratingReviewText, setRatingReviewText] = useState("");
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
+
+  const [ratingBuyerOrder, setRatingBuyerOrder] = useState<Order | null>(null);
+  const [ratingBuyerVal, setRatingBuyerVal] = useState(5);
+  const [ratingBuyerSubmitting, setRatingBuyerSubmitting] = useState(false);
+
+  // 1B. UTILITY: PREMIUM PHOTO GENERATORS
+  const getProductPhoto = (name: string): string => {
+    const term = name.toLowerCase();
+    if (term.includes("nasi")) {
+      return "https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&q=80&w=350";
+    }
+    if (term.includes("mie") || term.includes("bakso")) {
+      return "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&q=80&w=350";
+    }
+    if (term.includes("ayam")) {
+      return "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&q=80&w=350";
+    }
+    if (term.includes("roti") || term.includes("kue") || term.includes("donat")) {
+      return "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=350";
+    }
+    if (term.includes("minum") || term.includes("kopi") || term.includes("teh") || term.includes("jus")) {
+      return "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=350";
+    }
+    return "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=350";
+  };
+
+  const getMerchantPhoto = (name: string): string => {
+    const term = name.toLowerCase();
+    if (term.includes("padang")) {
+      return "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=400";
+    }
+    if (term.includes("mie") || term.includes("bakso")) {
+      return "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&q=80&w=400";
+    }
+    return "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=400";
+  };
+
+  // 1C. CUSTOM ALERT WRAPPERS
+  const showPremiumAlert = (message: string, title = "Notifikasi", onConfirm?: () => void) => {
+    setCustomAlert({
+      show: true,
+      title,
+      message,
+      confirmText: "OK",
+      onConfirm: () => {
+        setCustomAlert(null);
+        if (onConfirm) onConfirm();
+      }
+    });
+  };
+
+  const showPremiumConfirm = (message: string, onConfirm: () => void, title = "Konfirmasi") => {
+    setCustomAlert({
+      show: true,
+      title,
+      message,
+      confirmText: "Ya, Lanjutkan",
+      cancelText: "Batal",
+      onConfirm: () => {
+        setCustomAlert(null);
+        onConfirm();
+      },
+      onCancel: () => {
+        setCustomAlert(null);
+      }
+    });
+  };
+
+  const alert = (msg: string) => showPremiumAlert(msg);
+
+  // 1D. IMPLEMENTASI RATING & KUSTOMISASI KERANJANG
+  const openCustomizationModal = (product: Product) => {
+    setSelectedProductForOrder(product);
+    setOrderQty(1);
+    setSelectedTopping("Polos");
+    setSellerNote("");
+  };
+
+  const handleConfirmAddToCart = () => {
+    if (!selectedProductForOrder) return;
+    
+    // Check Single Merchant Cart Policy
+    if (cart.length > 0 && selectedProductForOrder.merchant_id !== cart[0].product.merchant_id) {
+      showPremiumConfirm(
+        "Keranjang belanja Anda berisi makanan dari dapur toko lain. Kosongkan keranjang untuk memesan dari dapur toko ini?",
+        () => {
+          // Clear cart and add new item
+          setCart([{ product: selectedProductForOrder, qty: orderQty, toppings: selectedTopping, notes: sellerNote }]);
+          setSelectedProductForOrder(null);
+          showPremiumAlert("Keranjang disetel ulang untuk toko baru!", "Sukses");
+        },
+        "Ganti Toko UMKM?"
+      );
+      return;
+    }
+
+    // Add or merge into cart
+    const existingIndex = cart.findIndex(item => 
+      item.product.id === selectedProductForOrder.id && 
+      item.toppings === selectedTopping && 
+      item.notes === sellerNote
+    );
+
+    if (existingIndex > -1) {
+      const updatedCart = [...cart];
+      updatedCart[existingIndex].qty += orderQty;
+      setCart(updatedCart);
+    } else {
+      setCart([...cart, { product: selectedProductForOrder, qty: orderQty, toppings: selectedTopping, notes: sellerNote }]);
+    }
+    
+    setSelectedProductForOrder(null);
+    showPremiumAlert(`${selectedProductForOrder.name} berhasil ditambahkan ke keranjang!`, "Sukses");
+  };
+
+  const handleRateOrderSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ratingOrder || !token) return;
+    setRatingSubmitting(true);
+    try {
+      const res = await fetch(`${API_URL}/orders/${ratingOrder.id}/rate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          merchant_rating: ratingRestoVal,
+          merchant_review: ratingReviewText,
+          courier_rating: ratingCourierVal
+        })
+      });
+      if (res.ok) {
+        showPremiumAlert("Terima kasih atas penilaian Anda! Ulasan Anda telah disimpan.", "Ulasan Terkirim");
+        setRatingOrder(null);
+        setRatingReviewText("");
+        fetchRoleOrders();
+      } else {
+        const data = await res.json();
+        showPremiumAlert(data.error || "Gagal mengirim penilaian.", "Gagal");
+      }
+    } catch (err) {
+      showPremiumAlert("Gagal terhubung ke server API.", "Error");
+    } finally {
+      setRatingSubmitting(false);
+    }
+  };
+
+  const handleRateBuyerSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ratingBuyerOrder || !token) return;
+    setRatingBuyerSubmitting(true);
+    try {
+      const res = await fetch(`${API_URL}/orders/${ratingBuyerOrder.id}/rate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          buyer_rating: ratingBuyerVal
+        })
+      });
+      if (res.ok) {
+        showPremiumAlert("Penilaian kebaikan pelanggan berhasil disimpan!", "Sukses");
+        setRatingBuyerOrder(null);
+        fetchRoleOrders();
+      } else {
+        const data = await res.json();
+        showPremiumAlert(data.error || "Gagal mengirim penilaian pelanggan.", "Gagal");
+      }
+    } catch (err) {
+      showPremiumAlert("Gagal terhubung ke server API.", "Error");
+    } finally {
+      setRatingBuyerSubmitting(false);
+    }
+  };
 
   // ==================== A. STATES BARU FITUR POD & LIVE-CHAT ====================
   // 1. Proof of Delivery (POD) Modal Kurir
@@ -204,6 +413,23 @@ export default function SecureMultiplatformPlatform() {
     if (savedToken && savedUser) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
+    }
+
+    // LOAD LEAFLET DYNAMICALLY FOR THE PREMIUM MAP
+    if (typeof window !== "undefined" && !window.hasOwnProperty("L")) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.onload = () => {
+        setLeafletLoaded(true);
+      };
+      document.body.appendChild(script);
+    } else if (typeof window !== "undefined" && window.hasOwnProperty("L")) {
+      setLeafletLoaded(true);
     }
   }, []);
 
@@ -373,10 +599,10 @@ export default function SecureMultiplatformPlatform() {
         orders.forEach(o => {
           if (o.status === "dikirim") {
             const current = prev[o.id] || 0.05;
-            if (current < 0.95) {
+            if (current < 1.0) {
               next[o.id] = parseFloat((current + 0.045).toFixed(3));
             } else {
-              next[o.id] = 0.95; // Arrived at destination
+              next[o.id] = 1.0; // Arrived at destination
             }
           }
         });
@@ -386,6 +612,91 @@ export default function SecureMultiplatformPlatform() {
 
     return () => clearInterval(interval);
   }, [token, orders]);
+
+  // DYNAMIC MAP: Inisialisasi Peta Interaktif LeafletJS Dark Cyber Premium
+  useEffect(() => {
+    if (!leafletLoaded || typeof window === "undefined") return;
+    
+    const activeOrders = orders.filter(o => o.status === "dikirim");
+    const L = (window as any).L;
+    if (!L) return;
+
+    activeOrders.forEach(o => {
+      const mapId = `map-${o.id}`;
+      const mapContainer = document.getElementById(mapId);
+      if (!mapContainer) return;
+
+      // Ambil data koordinat dinamis dari progress
+      const progress = gpsProgress[o.id] || 0.05;
+      
+      // Rute dari Dapur (Origin) ke Pembeli (Tujuan)
+      const originLatLng = [-6.2146, 106.8451];
+      const destLatLng = [-6.1996, 106.8601];
+      
+      const currentLat = originLatLng[0] + (progress * (destLatLng[0] - originLatLng[0]));
+      const currentLng = originLatLng[1] + (progress * (destLatLng[1] - originLatLng[1]));
+
+      if ((mapContainer as any)._leaflet_map) {
+        // Peta sudah diinisialisasi, cukup update posisi marker kurir
+        if ((mapContainer as any)._courier_marker) {
+          (mapContainer as any)._courier_marker.setLatLng([currentLat, currentLng]);
+          
+          // Auto-center map ke kurir agar tampak dinamis
+          (mapContainer as any)._leaflet_map.panTo([currentLat, currentLng]);
+        }
+        return;
+      }
+
+      // Inisialisasi Peta baru
+      const map = L.map(mapId, {
+        zoomControl: false,
+        attributionControl: false
+      }).setView([currentLat, currentLng], 14);
+
+      (mapContainer as any)._leaflet_map = map;
+
+      // Dark cyber map tile layer (CartoDB Dark Matter)
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 20
+      }).addTo(map);
+
+      // Icon Dapur (Green)
+      const originIcon = L.divIcon({
+        html: `<div class="p-1 bg-emerald-500 text-white rounded-lg border border-white shadow flex items-center justify-center" style="width: 26px; height: 26px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-store"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"></path><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"></path><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"></path></svg></div>`,
+        className: 'custom-leaflet-icon-container',
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      });
+      L.marker(originLatLng, { icon: originIcon }).addTo(map).bindPopup("Dapur UMKM");
+
+      // Icon Penerima (Indigo)
+      const destIcon = L.divIcon({
+        html: `<div class="p-1 bg-indigo-500 text-white rounded-lg border border-white shadow flex items-center justify-center" style="width: 26px; height: 26px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>`,
+        className: 'custom-leaflet-icon-container',
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      });
+      L.marker(destLatLng, { icon: destIcon }).addTo(map).bindPopup("Tujuan Pengantaran");
+
+      // Draw Route Line Dotted
+      L.polyline([originLatLng, destLatLng], {
+        color: '#6366F1',
+        weight: 3,
+        opacity: 0.5,
+        dashArray: '5, 5'
+      }).addTo(map);
+
+      // Icon Moving Courier
+      const courierIcon = L.divIcon({
+        html: `<div class="p-1.5 bg-amber-500 text-slate-950 rounded-full border-2 border-white shadow-lg animate-pulse flex items-center justify-center" style="width: 30px; height: 30px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-truck"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg></div>`,
+        className: 'custom-leaflet-icon-container',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+      });
+      const courierMarker = L.marker([currentLat, currentLng], { icon: courierIcon }).addTo(map);
+      (mapContainer as any)._courier_marker = courierMarker;
+    });
+  }, [leafletLoaded, orders, gpsProgress]);
 
   // Polling Pesan Chat setiap 3 detik jika box chat sedang dibuka (Live Simulation!)
   useEffect(() => {
@@ -550,7 +861,15 @@ export default function SecureMultiplatformPlatform() {
     e.preventDefault();
     if (cart.length === 0 || !shippingAddress || !selectedMerchant) return;
 
-    const totalPrice = cart.reduce((sum, item) => sum + item.product.price * item.qty, 0);
+    const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.qty, 0);
+    const deliveryFee = 10000;
+    const tax = Math.round(subtotal * 0.11);
+    const appFee = Math.round(subtotal * 0.02);
+    const totalPrice = subtotal + deliveryFee + tax + appFee;
+
+    // Concatenate toppings and notes
+    const toppingsSummary = cart.map(item => `${item.product.name} (Topping: ${item.toppings || "Polos"}) x${item.qty}`).join("; ");
+    const notesSummary = cart.map(item => item.notes ? `${item.product.name}: ${item.notes}` : "").filter(Boolean).join("; ");
 
     try {
       const res = await fetch(`${API_URL}/orders`, {
@@ -563,11 +882,16 @@ export default function SecureMultiplatformPlatform() {
           merchant_id: selectedMerchant.id,
           total_price: totalPrice,
           shipping_address: shippingAddress,
+          notes: notesSummary,
+          toppings: toppingsSummary,
+          tax: tax,
+          delivery_fee: deliveryFee,
+          app_fee: appFee
         }),
       });
 
       if (res.ok) {
-        alert("Pesanan sukses dikirim ke Dapur Dapur Penjual!");
+        alert("Pesanan sukses dikirim ke Dapur Penjual!");
         setCart([]);
         setShippingAddress("");
         fetchRoleOrders();
@@ -1388,29 +1712,45 @@ export default function SecureMultiplatformPlatform() {
                         <Store className="h-4.5 w-4.5 text-indigo-400" /> Dapur Kuliner UMKM Terdaftar ({filteredMerchants.length})
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredMerchants.map(merchant => (
-                          <div
-                            key={merchant.id}
-                            onClick={() => fetchMerchantProducts(merchant)}
-                            className="bg-slate-900/50 p-6 rounded-2xl border border-slate-900 hover:border-slate-800 hover:bg-slate-900/80 cursor-pointer shadow-lg transition-all group"
-                          >
-                            <div className="space-y-3">
-                              <div className="flex justify-between items-start gap-2">
-                                <h5 className="font-bold text-white text-base group-hover:text-indigo-400 transition-colors leading-tight">
-                                  {merchant.name}
-                                </h5>
-                                <span className="text-[9px] font-bold bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20 uppercase">
-                                  {merchant.category}
-                                </span>
+                        {filteredMerchants.map(merchant => {
+                          const mockRating = (4.5 + (merchant.id % 5) * 0.1).toFixed(1);
+                          const mockReviews = 12 + (merchant.id * 7) % 30;
+                          return (
+                            <div
+                              key={merchant.id}
+                              onClick={() => fetchMerchantProducts(merchant)}
+                              className="bg-slate-900/50 p-5 rounded-3xl border border-slate-900 hover:border-slate-800 hover:bg-slate-900/80 cursor-pointer shadow-lg transition-all group flex flex-col justify-between"
+                            >
+                              <div className="space-y-4">
+                                {/* Storefront Cover Photo */}
+                                <div className="relative h-40 w-full rounded-2xl overflow-hidden border border-slate-850 bg-slate-950">
+                                  <img src={getMerchantPhoto(merchant.name)} alt={merchant.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent"></div>
+                                  <span className="absolute top-3 right-3 text-[9px] font-bold bg-indigo-600/90 text-white px-2 py-0.5 rounded-lg border border-indigo-400/35 uppercase shadow-md">
+                                    {merchant.category}
+                                  </span>
+                                </div>
+                                <div className="space-y-2">
+                                  <div className="flex justify-between items-center gap-2">
+                                    <h5 className="font-bold text-white text-base group-hover:text-indigo-400 transition-colors leading-tight">
+                                      {merchant.name}
+                                    </h5>
+                                    <div className="flex items-center gap-1 text-[11px] font-bold text-amber-400 shrink-0 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
+                                      <span>★</span>
+                                      <span>{mockRating}</span>
+                                      <span className="text-slate-500 text-[9px] font-normal">({mockReviews})</span>
+                                    </div>
+                                  </div>
+                                  <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed">{merchant.description}</p>
+                                </div>
                               </div>
-                              <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed">{merchant.description}</p>
-                              <div className="pt-3 border-t border-slate-850 flex items-center gap-1.5 text-xs text-slate-500">
-                                <MapPin className="h-4 w-4 text-slate-400" />
+                              <div className="pt-3.5 mt-3 border-t border-slate-850 flex items-center gap-1.5 text-xs text-slate-500">
+                                <MapPin className="h-4 w-4 text-slate-450 shrink-0" />
                                 <span className="truncate">{merchant.address}</span>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1446,25 +1786,31 @@ export default function SecureMultiplatformPlatform() {
                         <h4 className="font-bold text-slate-300 text-sm">Katalog Menu</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                           {products.map(p => (
-                            <div key={p.id} className="bg-slate-900/50 p-5 rounded-2xl border border-slate-900 flex flex-col justify-between gap-4 shadow-lg hover:border-slate-800 transition-all">
-                              <div className="space-y-2">
-                                <div className="flex justify-between items-start gap-2">
-                                  <h5 className="font-bold text-white text-sm">{p.name}</h5>
-                                  {p.is_pre_order ? (
-                                    <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[10px] font-bold rounded border border-amber-500/20">PO {p.pre_order_days} Hari</span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded border border-emerald-500/20">⚡ Ready</span>
-                                  )}
+                            <div key={p.id} className="bg-slate-900/50 p-5 rounded-2xl border border-slate-900 flex flex-col justify-between gap-4 shadow-lg hover:border-slate-800 transition-all group">
+                              <div className="space-y-3">
+                                {/* Cover Photo Makanan Premium */}
+                                <div className="relative h-32 w-full rounded-xl overflow-hidden border border-slate-855 bg-slate-950">
+                                  <img src={getProductPhoto(p.name)} alt={p.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                                 </div>
-                                <p className="text-slate-400 text-xs line-clamp-2">{p.description}</p>
+                                <div className="space-y-2">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <h5 className="font-bold text-white text-sm group-hover:text-indigo-400 transition-colors leading-snug">{p.name}</h5>
+                                    {p.is_pre_order ? (
+                                      <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[10px] font-bold rounded border border-amber-500/20 whitespace-nowrap">PO {p.pre_order_days} Hari</span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded border border-emerald-500/20 whitespace-nowrap">⚡ Ready</span>
+                                    )}
+                                  </div>
+                                  <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed">{p.description}</p>
+                                </div>
                               </div>
                               <div className="flex justify-between items-center pt-3 border-t border-slate-900">
                                 <span className="text-sm font-extrabold text-white">Rp {p.price.toLocaleString("id-ID")}</span>
                                 <button
-                                  onClick={() => addToCart(p)}
-                                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all"
+                                  onClick={() => openCustomizationModal(p)}
+                                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-md active:scale-95"
                                 >
-                                  Tambah
+                                  Pesan
                                 </button>
                               </div>
                             </div>
@@ -1480,34 +1826,88 @@ export default function SecureMultiplatformPlatform() {
                           {cart.length === 0 ? (
                             <p className="text-slate-500 text-xs text-center py-8">Keranjang belanja Anda masih kosong.</p>
                           ) : (
-                            <div className="space-y-4">
-                              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                {cart.map(item => (
-                                  <div key={item.product.id} className="flex justify-between items-center bg-slate-950 p-2.5 rounded-lg border border-slate-850">
-                                    <div className="flex-1 pr-2">
-                                      <h6 className="text-xs font-bold text-slate-200 truncate">{item.product.name}</h6>
-                                      <span className="text-[10px] text-slate-500 font-bold block mt-0.5">{item.qty} x Rp {item.product.price.toLocaleString("id-ID")}</span>
-                                    </div>
-                                    <button onClick={() => setCart(cart.filter(c => c.product.id !== item.product.id))} className="p-1 text-slate-500 hover:text-rose-400"><Trash2 className="h-4 w-4" /></button>
+                            (() => {
+                              const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.qty, 0);
+                              const deliveryFee = 10000;
+                              const tax = Math.round(subtotal * 0.11);
+                              const appFee = Math.round(subtotal * 0.02);
+                              const totalPrice = subtotal + deliveryFee + tax + appFee;
+                              return (
+                                <div className="space-y-4 animate-fadeIn">
+                                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                    {cart.map((item, idx) => (
+                                      <div key={idx} className="flex justify-between items-center bg-slate-950 p-2.5 rounded-lg border border-slate-850">
+                                        <div className="flex-1 pr-2">
+                                          <h6 className="text-xs font-bold text-slate-200 truncate">{item.product.name}</h6>
+                                          {item.toppings && (
+                                            <span className="text-[9px] text-indigo-400 font-bold block mt-0.5">
+                                              Topping: {item.toppings}
+                                            </span>
+                                          )}
+                                          {item.notes && (
+                                            <span className="text-[9px] text-slate-500 block italic truncate mt-0.5">
+                                              Catatan: "{item.notes}"
+                                            </span>
+                                          )}
+                                          <span className="text-[10px] text-slate-500 font-bold block mt-0.5">
+                                            {item.qty} x Rp {item.product.price.toLocaleString("id-ID")}
+                                          </span>
+                                        </div>
+                                        <button 
+                                          onClick={() => setCart(cart.filter((_, i) => i !== idx))} 
+                                          className="p-1 text-slate-500 hover:text-rose-400"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
+                                      </div>
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
-                              <div className="border-t border-slate-850 pt-3 flex justify-between items-center font-bold text-xs">
-                                <span className="text-slate-400">TOTAL HARGA:</span>
-                                <span className="text-white text-sm">Rp {cart.reduce((sum, item) => sum + item.product.price * item.qty, 0).toLocaleString("id-ID")}</span>
-                              </div>
-                              <form onSubmit={handleCheckout} className="border-t border-slate-850 pt-3 space-y-3">
-                                <textarea
-                                  placeholder="Alamat Lengkap Pengiriman..."
-                                  value={shippingAddress}
-                                  onChange={e => setShippingAddress(e.target.value)}
-                                  className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none w-full resize-none"
-                                  rows={2}
-                                  required
-                                />
-                                <button type="submit" className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md">Checkout</button>
-                              </form>
-                            </div>
+                                  
+                                  {/* Rincian Biaya Premium */}
+                                  <div className="space-y-2 border-t border-slate-850 pt-3 text-xs font-semibold">
+                                    <div className="flex justify-between items-center text-slate-450">
+                                      <span>Subtotal Makanan:</span>
+                                      <span className="text-slate-200">Rp {subtotal.toLocaleString("id-ID")}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-slate-450">
+                                      <span>Ongkos Kirim (Flat):</span>
+                                      <span className="text-slate-200">Rp {deliveryFee.toLocaleString("id-ID")}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-slate-450">
+                                      <span>PPN Resto (11%):</span>
+                                      <span className="text-slate-200">Rp {tax.toLocaleString("id-ID")}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-slate-450">
+                                      <span>Biaya Layanan (2%):</span>
+                                      <span className="text-slate-200">Rp {appFee.toLocaleString("id-ID")}</span>
+                                    </div>
+                                    <div className="border-t border-slate-800 pt-2 flex justify-between items-center font-extrabold text-[11px] text-indigo-400 uppercase tracking-wide">
+                                      <span>TOTAL BAYAR:</span>
+                                      <span className="text-white text-xs bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 shadow-sm shadow-indigo-500/5">
+                                        Rp {totalPrice.toLocaleString("id-ID")}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <form onSubmit={handleCheckout} className="border-t border-slate-850 pt-3 space-y-3">
+                                    <textarea
+                                      placeholder="Alamat Lengkap Pengiriman..."
+                                      value={shippingAddress}
+                                      onChange={e => setShippingAddress(e.target.value)}
+                                      className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none w-full resize-none"
+                                      rows={2}
+                                      required
+                                    />
+                                    <button 
+                                      type="submit" 
+                                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
+                                    >
+                                      Checkout
+                                    </button>
+                                  </form>
+                                </div>
+                              );
+                            })()
                           )}
                         </div>
                       </div>
@@ -1551,51 +1951,55 @@ export default function SecureMultiplatformPlatform() {
                                   <span className="text-indigo-400 uppercase">Sedang Diantar</span>
                                 </div>
                                 
-                                {/* Dynamic Peta CSS */}
-                                <div className="h-28 w-full bg-slate-950 rounded-lg relative overflow-hidden border border-slate-800 flex items-center justify-center">
-                                  <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:14px_14px] opacity-10"></div>
-                                  
-                                  {/* Origin Marker */}
-                                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-center z-10 flex flex-col items-center">
-                                    <div className="p-1 bg-emerald-500/20 border border-emerald-400/50 rounded-lg text-emerald-400">
-                                      <Store className="h-3.5 w-3.5" />
+                                {/* Dynamic Peta LeafletJS / CSS simulated path */}
+                                {leafletLoaded ? (
+                                  <div id={`map-${o.id}`} className="h-44 w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800/80 shadow-inner my-2 z-10" />
+                                ) : (
+                                  <div className="h-28 w-full bg-slate-950 rounded-lg relative overflow-hidden border border-slate-800 flex items-center justify-center">
+                                    <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:14px_14px] opacity-10"></div>
+                                    
+                                    {/* Origin Marker */}
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-center z-10 flex flex-col items-center">
+                                      <div className="p-1 bg-emerald-500/20 border border-emerald-400/50 rounded-lg text-emerald-400">
+                                        <Store className="h-3.5 w-3.5" />
+                                      </div>
+                                      <span className="text-[6px] font-extrabold text-emerald-400 mt-0.5 block">DAPUR</span>
                                     </div>
-                                    <span className="text-[6px] font-extrabold text-emerald-400 mt-0.5 block">DAPUR</span>
-                                  </div>
 
-                                  {/* Destination Marker */}
-                                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-center z-10 flex flex-col items-center">
-                                    <div className="p-1 bg-indigo-500/20 border border-indigo-400/50 rounded-lg text-indigo-400">
-                                      <MapPin className="h-3.5 w-3.5" />
+                                    {/* Destination Marker */}
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-center z-10 flex flex-col items-center">
+                                      <div className="p-1 bg-indigo-500/20 border border-indigo-400/50 rounded-lg text-indigo-400">
+                                        <MapPin className="h-3.5 w-3.5" />
+                                      </div>
+                                      <span className="text-[6px] font-extrabold text-indigo-400 mt-0.5 block">TUJUAN</span>
                                     </div>
-                                    <span className="text-[6px] font-extrabold text-indigo-400 mt-0.5 block">TUJUAN</span>
-                                  </div>
 
-                                  {/* Dotted Path */}
-                                  <div className="absolute left-[36px] right-[36px] top-1/2 -translate-y-1/2 h-0.5 border-t border-dashed border-slate-850"></div>
-                                  
-                                  {/* Glowing Active Route */}
-                                  <div 
-                                    className="absolute left-[36px] top-1/2 -translate-y-1/2 h-0.5 bg-gradient-to-r from-emerald-500 to-indigo-500 transition-all duration-1000 ease-in-out"
-                                    style={{ width: `calc(${Math.min(100, Math.max(0, (gpsProgress[o.id] || 0.05) * 100))}% - 36px)` }}
-                                  ></div>
+                                    {/* Dotted Path */}
+                                    <div className="absolute left-[36px] right-[36px] top-1/2 -translate-y-1/2 h-0.5 border-t border-dashed border-slate-850"></div>
+                                    
+                                    {/* Glowing Active Route */}
+                                    <div 
+                                      className="absolute left-[36px] top-1/2 -translate-y-1/2 h-0.5 bg-gradient-to-r from-emerald-500 to-indigo-500 transition-all duration-1000 ease-in-out"
+                                      style={{ width: `calc(${Math.min(100, Math.max(0, (gpsProgress[o.id] || 0.05) * 100))}% - 36px)` }}
+                                    ></div>
 
-                                  {/* Moving Courier */}
-                                  <div 
-                                    className="absolute top-1/2 -translate-y-1/2 z-20 flex flex-col items-center transition-all duration-1000 ease-in-out"
-                                    style={{ left: `calc(36px + ${Math.min(85, Math.max(0, (gpsProgress[o.id] || 0.05) * 85))}%)` }}
-                                  >
-                                    <div className="p-1 bg-amber-500 text-slate-950 rounded-full border border-white shadow-lg animate-pulse">
-                                      <Truck className="h-3 w-3" />
+                                    {/* Moving Courier */}
+                                    <div 
+                                      className="absolute top-1/2 -translate-y-1/2 z-20 flex flex-col items-center transition-all duration-1000 ease-in-out"
+                                      style={{ left: `calc(36px + ${Math.min(85, Math.max(0, (gpsProgress[o.id] || 0.05) * 85))}%)` }}
+                                    >
+                                      <div className="p-1 bg-amber-500 text-slate-950 rounded-full border border-white shadow-lg animate-pulse">
+                                        <Truck className="h-3 w-3" />
+                                      </div>
+                                      <span className="text-[5px] font-extrabold text-amber-400 bg-slate-950 px-1 rounded border border-slate-800 mt-0.5 whitespace-nowrap">KURIR</span>
                                     </div>
-                                    <span className="text-[5px] font-extrabold text-amber-400 bg-slate-950 px-1 rounded border border-slate-800 mt-0.5 whitespace-nowrap">KURIR</span>
-                                  </div>
 
-                                  {/* GPS Telemetry */}
-                                  <div className="absolute bottom-1 right-2 text-[5px] text-slate-500 font-mono">
-                                    LAT: -6.2146 | LON: 106.8451 | SPD: 24 km/h
+                                    {/* GPS Telemetry */}
+                                    <div className="absolute bottom-1 right-2 text-[5px] text-slate-500 font-mono">
+                                      LAT: -6.2146 | LON: 106.8451 | SPD: 24 km/h
+                                    </div>
                                   </div>
-                                </div>
+                                )}
 
                                 {/* Telemetry Details */}
                                 <div className="bg-slate-950 p-2 rounded-lg border border-slate-850 flex justify-between items-center text-[10px]">
@@ -1614,7 +2018,7 @@ export default function SecureMultiplatformPlatform() {
                                     <span className="text-[7px] text-slate-500 block font-bold leading-none">JARAK SISA</span>
                                     <span className="text-indigo-400 font-extrabold text-[10px] mt-0.5 block">
                                       {(gpsProgress[o.id] || 0) >= 0.95 
-                                        ? "Selesai" 
+                                        ? "Tiba!" 
                                         : `${Math.ceil((1 - (gpsProgress[o.id] || 0.05)) * 800)} meter`}
                                     </span>
                                   </div>
@@ -1642,6 +2046,34 @@ export default function SecureMultiplatformPlatform() {
                               >
                                 <CheckCircle className="h-3.5 w-3.5" /> Lihat Bukti Foto Paket Sampai
                               </button>
+                            )}
+
+                            {/* RATING BUTTON FOR BUYER */}
+                            {o.status === "selesai" && (
+                              (() => {
+                                const hasRated = o.merchant_rating && o.merchant_rating > 0;
+                                return hasRated ? (
+                                  <div className="w-full p-2.5 bg-slate-900/60 border border-slate-850 rounded-xl text-[9px] font-semibold text-slate-400 flex flex-col gap-1 w-full text-left">
+                                    <div className="flex justify-between items-center">
+                                      <span className="flex items-center gap-1 text-amber-400">★ Resto: {o.merchant_rating}/5</span>
+                                      <span className="flex items-center gap-1 text-indigo-400">★ Kurir: {o.courier_rating}/5</span>
+                                    </div>
+                                    {o.merchant_review && <span className="text-slate-500 italic mt-0.5 truncate block">Ulasan: "{o.merchant_review}"</span>}
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      setRatingOrder(o);
+                                      setRatingRestoVal(5);
+                                      setRatingCourierVal(5);
+                                      setRatingReviewText("");
+                                    }}
+                                    className="w-full py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-bold rounded-xl text-[10px] transition-all shadow-md flex items-center justify-center gap-1.5 active:scale-95 text-white"
+                                  >
+                                    <Sparkles className="h-3.5 w-3.5 animate-pulse" /> Beri Bintang & Ulasan Resto / Kurir
+                                  </button>
+                                );
+                              })()
                             )}
                           </div>
                         </div>
@@ -1741,15 +2173,32 @@ export default function SecureMultiplatformPlatform() {
                           <span className="text-[9px] font-bold text-slate-500">ID: #{o.id}</span>
                           <h6 className="text-xs font-bold text-slate-350 mt-0.5">Nilai: Rp {o.total_price.toLocaleString("id-ID")}</h6>
                         </div>
-                        {o.proof_of_delivery && (
-                          <button
-                            onClick={() => setPreviewPhotoUrl(o.proof_of_delivery)}
-                            className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-800"
-                            title="Lihat Bukti Foto"
-                          >
-                            <Image className="h-4 w-4" />
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {o.buyer_rating && o.buyer_rating > 0 ? (
+                            <span className="text-[9px] font-bold bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-lg border border-emerald-500/20 whitespace-nowrap">
+                              ⭐ Pelanggan: {o.buyer_rating}/5
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setRatingBuyerOrder(o);
+                                setRatingBuyerVal(5);
+                              }}
+                              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[9px] font-bold transition-all shadow-md active:scale-95 whitespace-nowrap"
+                            >
+                              Beri Rating Pelanggan
+                            </button>
+                          )}
+                          {o.proof_of_delivery && (
+                            <button
+                              onClick={() => setPreviewPhotoUrl(o.proof_of_delivery)}
+                              className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg border border-slate-800 shrink-0"
+                              title="Lihat Bukti Foto"
+                            >
+                              <Image className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1934,7 +2383,7 @@ export default function SecureMultiplatformPlatform() {
               <img src={previewPhotoUrl} alt="Bukti Foto Pengiriman" className="w-full h-full object-cover" />
             </div>
             <p className="text-xs text-slate-400 text-center leading-relaxed">
-              Foto di atas diunggah langsung oleh kurir Anda saat paket makanan diserahterimakan dengan selamat.
+              Foto di atas diunggah langsung oleh kurir Anda saat paket makanan diserah terimakan dengan selamat.
             </p>
           </div>
         </div>
@@ -2108,6 +2557,295 @@ export default function SecureMultiplatformPlatform() {
           {/* Removed tech stack listing */}
         </div>
       </footer>
+      {/* ==================== PREMIUM OVERLAYS & MODALS ==================== */}
+      {/* 1. Custom Glassmorphic Toast/Alert/Confirm Modal */}
+      {customAlert && customAlert.show && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-slate-900/95 border border-slate-850 rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl p-6 space-y-4 animate-scaleUp text-slate-100 relative">
+            <div className="flex items-center gap-3 border-b border-slate-850 pb-3">
+              <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20">
+                <AlertTriangle className="h-5 w-5 animate-pulse text-indigo-405" />
+              </div>
+              <h4 className="font-bold text-white text-base">{customAlert.title}</h4>
+            </div>
+            <p className="text-xs text-slate-350 leading-relaxed font-medium">
+              {customAlert.message}
+            </p>
+            <div className="pt-2 flex gap-3">
+              {customAlert.cancelText && (
+                <button
+                  type="button"
+                  onClick={customAlert.onCancel}
+                  className="flex-grow py-2.5 bg-slate-950 hover:bg-slate-850 text-slate-400 hover:text-slate-200 border border-slate-850 rounded-xl text-xs font-bold transition-all"
+                >
+                  {customAlert.cancelText}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={customAlert.onConfirm}
+                className="flex-grow py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-500/25"
+              >
+                {customAlert.confirmText || "OK"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Product Customization Modal */}
+      {selectedProductForOrder && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-5 animate-scaleUp">
+            <div className="flex justify-between items-center border-b border-slate-850 pb-3">
+              <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                <Plus className="h-4.5 w-4.5 text-indigo-400" />
+                Kustomisasi Hidangan
+              </h4>
+              <button
+                onClick={() => setSelectedProductForOrder(null)}
+                className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Product Details */}
+            <div className="flex gap-4 items-start">
+              <img src={getProductPhoto(selectedProductForOrder.name)} alt={selectedProductForOrder.name} className="w-24 h-24 rounded-xl object-cover border border-slate-800 shrink-0 bg-slate-950" />
+              <div className="space-y-1">
+                <h5 className="font-bold text-white text-sm">{selectedProductForOrder.name}</h5>
+                <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed">{selectedProductForOrder.description}</p>
+                <span className="text-indigo-400 font-extrabold text-sm block pt-1">Rp {selectedProductForOrder.price.toLocaleString("id-ID")}</span>
+              </div>
+            </div>
+
+            {/* Quantity Selector */}
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Kuantitas Pesanan:</label>
+              <div className="flex items-center gap-4 bg-slate-950 p-2 rounded-xl border border-slate-850 w-fit">
+                <button
+                  type="button"
+                  disabled={orderQty <= 1}
+                  onClick={() => setOrderQty(orderQty - 1)}
+                  className="p-1.5 hover:bg-slate-900 text-slate-400 hover:text-white rounded-lg disabled:opacity-30 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="text-xs font-bold text-white w-8 text-center">{orderQty}</span>
+                <button
+                  type="button"
+                  disabled={!selectedProductForOrder.is_pre_order && orderQty >= selectedProductForOrder.stock}
+                  onClick={() => setOrderQty(orderQty + 1)}
+                  className="p-1.5 hover:bg-slate-900 text-slate-400 hover:text-white rounded-lg disabled:opacity-30 transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {!selectedProductForOrder.is_pre_order && (
+                <span className="text-[10px] text-slate-500 font-medium">Stok Tersedia: {selectedProductForOrder.stock} porsi</span>
+              )}
+            </div>
+
+            {/* Toppings Options */}
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Pilih Topping / Isi:</label>
+              <div className="grid grid-cols-2 gap-2">
+                {["Polos", "Ekstra Keju", "Ekstra Cokelat", "Saus Pedas"].map((topping) => (
+                  <label
+                    key={topping}
+                    className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                      selectedTopping === topping ? "bg-indigo-600/10 border-indigo-505 text-white font-bold" : "bg-slate-955 border-slate-850 text-slate-400 bg-slate-950"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="topping"
+                      value={topping}
+                      checked={selectedTopping === topping}
+                      onChange={() => setSelectedTopping(topping)}
+                      className="hidden"
+                    />
+                    <span className="text-xs">{topping}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase">Catatan untuk Penjual:</label>
+              <textarea
+                placeholder="Contoh: pedas sedang ya, tanpa sendok plastik..."
+                value={sellerNote}
+                onChange={e => setSellerNote(e.target.value)}
+                className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none w-full resize-none placeholder:text-slate-650"
+                rows={2}
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="pt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedProductForOrder(null)}
+                className="flex-1 py-2.5 bg-slate-950 hover:bg-slate-850 text-slate-450 rounded-xl text-xs font-bold transition-all border border-slate-850"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAddToCart}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95"
+              >
+                Tambah ke Keranjang
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Rating & Ulasan Resto + Kurir Modal */}
+      {ratingOrder && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <form onSubmit={handleRateOrderSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-5 animate-scaleUp">
+            <div className="flex justify-between items-center border-b border-slate-850 pb-3">
+              <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                <Sparkles className="h-4.5 w-4.5 text-amber-400 animate-pulse" />
+                Beri Bintang & Ulasan
+              </h4>
+              <button
+                type="button"
+                onClick={() => setRatingOrder(null)}
+                className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Resto Stars */}
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Rasa Makanan & Dapur Resto:</label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRatingRestoVal(star)}
+                    className={`text-2xl transition-all ${ratingRestoVal >= star ? "text-amber-400 scale-110" : "text-slate-650 hover:text-slate-500"}`}
+                  >
+                    ★
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Review Input */}
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase">Ulasan Hidangan Makanan:</label>
+              <textarea
+                placeholder="Makanan hangat dan rasa sangat nikmat..."
+                value={ratingReviewText}
+                onChange={e => setRatingReviewText(e.target.value)}
+                className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none w-full resize-none placeholder:text-slate-650"
+                rows={3}
+                required
+              />
+            </div>
+
+            {/* Courier Stars */}
+            <div className="space-y-2 pt-2 border-t border-slate-850">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Pelayanan Pengantaran Kurir:</label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRatingCourierVal(star)}
+                    className={`text-2xl transition-all ${ratingCourierVal >= star ? "text-indigo-400 scale-110" : "text-slate-650 hover:text-slate-500"}`}
+                  >
+                    ★
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="pt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setRatingOrder(null)}
+                className="flex-1 py-2.5 bg-slate-950 hover:bg-slate-850 text-slate-450 rounded-xl text-xs font-bold transition-all border border-slate-850"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={ratingSubmitting}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5"
+              >
+                {ratingSubmitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Kirim Ulasan"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 4. Courier Rating to Buyer Modal */}
+      {ratingBuyerOrder && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <form onSubmit={handleRateBuyerSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-5 animate-scaleUp">
+            <div className="flex justify-between items-center border-b border-slate-850 pb-3">
+              <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                <User className="h-4.5 w-4.5 text-indigo-400 animate-pulse" />
+                Nilai Kebaikan Pelanggan
+              </h4>
+              <button
+                type="button"
+                onClick={() => setRatingBuyerOrder(null)}
+                className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Buyer Stars */}
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Sopan Santun & Keramahan Penerima Paket:</label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRatingBuyerVal(star)}
+                    className={`text-2xl transition-all ${ratingBuyerVal >= star ? "text-emerald-400 scale-110" : "text-slate-655 hover:text-slate-500"}`}
+                  >
+                    ★
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="pt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setRatingBuyerOrder(null)}
+                className="flex-1 py-2.5 bg-slate-950 hover:bg-slate-850 text-slate-455 rounded-xl text-xs font-bold transition-all border border-slate-850"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={ratingBuyerSubmitting}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5"
+              >
+                {ratingBuyerSubmitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Simpan Penilaian"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
