@@ -80,6 +80,7 @@ func SetupRouter() *gin.Engine {
 			orders.PUT("/:id/status", controllers.UpdateOrderStatus) // Seller approve / Courier pick/deliver
 			orders.POST("/:id/chat", controllers.SendChatMessage)   // Send message
 			orders.GET("/:id/chat", controllers.GetChatHistory)     // Get chat history
+			orders.POST("/:id/rate", controllers.RateOrder)        // Submit rating/review
 		}
 	}
 

@@ -14,6 +14,19 @@ type OrderInput struct {
 	MerchantID      uint    `json:"merchant_id" binding:"required"`
 	TotalPrice      float64 `json:"total_price" binding:"required"`
 	ShippingAddress string  `json:"shipping_address" binding:"required"`
+	Notes           string  `json:"notes"`
+	Toppings        string  `json:"toppings"`
+	Tax             float64 `json:"tax"`
+	DeliveryFee     float64 `json:"delivery_fee"`
+	AppFee          float64 `json:"app_fee"`
+}
+
+// RateOrderInput mendefinisikan skema input rating dari pengguna
+type RateOrderInput struct {
+	MerchantRating int    `json:"merchant_rating"`
+	MerchantReview string `json:"merchant_review"`
+	CourierRating  int    `json:"courier_rating"`
+	BuyerRating    int    `json:"buyer_rating"`
 }
 
 // UpdateStatusInput mendefinisikan skema input untuk mengubah status pesanan
@@ -45,6 +58,11 @@ func CreateOrder(c *gin.Context) {
 		SellerID:        merchant.OwnerID, // Pemilik dapur adalah penjualnya
 		TotalPrice:      input.TotalPrice,
 		ShippingAddress: input.ShippingAddress,
+		Notes:           input.Notes,
+		Toppings:        input.Toppings,
+		Tax:             input.Tax,
+		DeliveryFee:     input.DeliveryFee,
+		AppFee:          input.AppFee,
 		Status:          "pending", // Menunggu konfirmasi penjual
 	}
 
@@ -170,6 +188,45 @@ func UpdateOrderStatus(c *gin.Context) {
 	// Simpan perubahan status
 	if err := config.DB.Save(&order).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui status pesanan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, order)
+}
+
+// RateOrder menyimpan penilaian kurir, resto, pembeli, dan ulasan pembeli
+func RateOrder(c *gin.Context) {
+	orderIDStr := c.Param("id")
+	orderID, _ := strconv.Atoi(orderIDStr)
+
+	var input RateOrderInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var order models.Order
+	if err := config.DB.First(&order, orderID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pesanan tidak ditemukan"})
+		return
+	}
+
+	// Simpan data rating
+	if input.MerchantRating > 0 {
+		order.MerchantRating = input.MerchantRating
+	}
+	if input.MerchantReview != "" {
+		order.MerchantReview = input.MerchantReview
+	}
+	if input.CourierRating > 0 {
+		order.CourierRating = input.CourierRating
+	}
+	if input.BuyerRating > 0 {
+		order.BuyerRating = input.BuyerRating
+	}
+
+	if err := config.DB.Save(&order).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan data penilaian"})
 		return
 	}
 
