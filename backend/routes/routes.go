@@ -54,6 +54,7 @@ func SetupRouter() *gin.Engine {
 		{
 			merchantAdmin.POST("", controllers.RegisterMerchant)
 			merchantAdmin.GET("/my", controllers.GetMyMerchant)
+			merchantAdmin.PUT("/my", controllers.UpdateMyMerchant)
 		}
 
 		// 3. Product Routes (Mix Public & Protected)

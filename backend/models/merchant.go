@@ -12,6 +12,7 @@ type Merchant struct {
 	Address     string    `gorm:"type:text;not null" json:"address"` // Alamat Toko / Dapur
 	Category    string    `gorm:"type:varchar(50);not null;default:'Kuliner'" json:"category"` // Kuliner, Camilan, dll
 	Description string    `gorm:"type:text" json:"description"`
+	ImageURL    string    `gorm:"type:text" json:"image_url"` // URL/Base64 Foto Restoran kustom
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

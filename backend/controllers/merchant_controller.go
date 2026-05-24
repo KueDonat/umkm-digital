@@ -14,6 +14,7 @@ type MerchantInput struct {
 	Address     string `json:"address" binding:"required"`
 	Category    string `json:"category" binding:"required"`
 	Description string `json:"description"`
+	ImageURL    string `json:"image_url"`
 }
 
 // RegisterMerchant menangani pendaftaran profil toko UMKM baru oleh Penjual
@@ -45,6 +46,7 @@ func RegisterMerchant(c *gin.Context) {
 		Address:     input.Address,
 		Category:    input.Category,
 		Description: input.Description,
+		ImageURL:    input.ImageURL,
 	}
 
 	if err := config.DB.Create(&newMerchant).Error; err != nil {
@@ -94,4 +96,48 @@ func GetMerchantProducts(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, products)
+}
+
+// UpdateMyMerchantInput mendefinisikan skema JSON untuk memperbarui profil toko UMKM
+type UpdateMyMerchantInput struct {
+	Name        string `json:"name" binding:"required"`
+	Address     string `json:"address" binding:"required"`
+	Category    string `json:"category" binding:"required"`
+	Description string `json:"description"`
+	ImageURL    string `json:"image_url"`
+}
+
+// UpdateMyMerchant memperbarui data profil toko UMKM penjual
+func UpdateMyMerchant(c *gin.Context) {
+	userIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Otorisasi diperlukan!"})
+		return
+	}
+	userID := userIDVal.(uint)
+
+	var merchant models.Merchant
+	if err := config.DB.Where("owner_id = ?", userID).First(&merchant).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Profil toko Anda tidak ditemukan!"})
+		return
+	}
+
+	var input UpdateMyMerchantInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	merchant.Name = input.Name
+	merchant.Address = input.Address
+	merchant.Category = input.Category
+	merchant.Description = input.Description
+	merchant.ImageURL = input.ImageURL
+
+	if err := config.DB.Save(&merchant).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui profil toko Anda"})
+		return
+	}
+
+	c.JSON(http.StatusOK, merchant)
 }

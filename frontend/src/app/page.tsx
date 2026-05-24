@@ -35,6 +35,7 @@ import {
   Image,
   Edit3,
   Upload,
+  Settings,
 } from "lucide-react";
 
 // Tipe Data
@@ -45,6 +46,7 @@ interface Merchant {
   address: string;
   category: string;
   description: string;
+  image_url?: string;
 }
 
 interface Product {
@@ -208,6 +210,16 @@ export default function SecureMultiplatformPlatform() {
   const [editMenuImageURL, setEditMenuImageURL] = useState("");
   const [editMenuLoading, setEditMenuLoading] = useState(false);
   const [editMenuError, setEditMenuError] = useState("");
+
+  // States Edit Toko / Restoran
+  const [isEditingMerchant, setIsEditingMerchant] = useState(false);
+  const [editStoreName, setEditStoreName] = useState("");
+  const [editStoreCategory, setEditStoreCategory] = useState("Kuliner Makanan");
+  const [editStoreAddress, setEditStoreAddress] = useState("");
+  const [editStoreDesc, setEditStoreDesc] = useState("");
+  const [editStoreImageURL, setEditStoreImageURL] = useState("");
+  const [editStoreLoading, setEditStoreLoading] = useState(false);
+  const [editStoreError, setEditStoreError] = useState("");
 
   // States Pembeli / E-Commerce (GoFood)
   const [searchStoreQuery, setSearchStoreQuery] = useState("");
@@ -865,6 +877,53 @@ export default function SecureMultiplatformPlatform() {
       setRegStoreError("Koneksi gagal.");
     } finally {
       setRegStoreLoading(false);
+    }
+  };
+
+  const openEditMerchantModal = () => {
+    if (!myMerchant) return;
+    setEditStoreName(myMerchant.name);
+    setEditStoreCategory(myMerchant.category);
+    setEditStoreAddress(myMerchant.address);
+    setEditStoreDesc(myMerchant.description || "");
+    setEditStoreImageURL(myMerchant.image_url || "");
+    setEditStoreError("");
+    setIsEditingMerchant(true);
+  };
+
+  const handleEditMerchantSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !myMerchant) return;
+    setEditStoreLoading(true);
+    setEditStoreError("");
+    try {
+      const res = await fetch(`${API_URL}/merchants/my`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editStoreName,
+          address: editStoreAddress,
+          category: editStoreCategory,
+          description: editStoreDesc,
+          image_url: editStoreImageURL,
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMyMerchant(data);
+        showPremiumAlert("Profil toko Anda berhasil diperbarui!", "Sukses");
+        setIsEditingMerchant(false);
+        fetchAllMerchants();
+      } else {
+        setEditStoreError(data.error || "Gagal memperbarui profil toko.");
+      }
+    } catch (err) {
+      setEditStoreError("Koneksi gagal.");
+    } finally {
+      setEditStoreLoading(false);
     }
   };
 
@@ -1636,11 +1695,25 @@ export default function SecureMultiplatformPlatform() {
                     {/* Profil Merchant */}
                     <div className="bg-slate-900/60 p-6 rounded-2xl border border-slate-850 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                       <div className="flex items-center gap-4">
-                        <div className="p-3 bg-indigo-600/10 text-indigo-400 rounded-xl border border-indigo-500/20">
-                          <Store className="h-6 w-6" />
+                        <div className="relative shrink-0">
+                          <img
+                            src={myMerchant.image_url || getMerchantPhoto(myMerchant.name)}
+                            alt={myMerchant.name}
+                            className="w-14 h-14 rounded-xl object-cover border border-slate-800 bg-slate-950"
+                          />
                         </div>
                         <div>
-                          <h3 className="text-lg font-bold text-white">{myMerchant.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-white">{myMerchant.name}</h3>
+                            <button
+                              type="button"
+                              onClick={openEditMerchantModal}
+                              className="p-1 bg-slate-950 border border-slate-850 hover:bg-indigo-500/10 text-slate-400 hover:text-indigo-400 rounded-lg transition"
+                              title="Edit Profil Toko"
+                            >
+                              <Settings className="h-4 w-4" />
+                            </button>
+                          </div>
                           <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
                             <span className="bg-slate-950 px-2 py-0.5 rounded text-[10px] font-bold text-indigo-400 border border-slate-850">{myMerchant.category}</span>
                             <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-slate-500" /> {myMerchant.address}</span>
@@ -1944,7 +2017,7 @@ export default function SecureMultiplatformPlatform() {
                               <div className="space-y-4">
                                 {/* Storefront Cover Photo */}
                                 <div className="relative h-40 w-full rounded-2xl overflow-hidden border border-slate-850 bg-slate-950">
-                                  <img src={getMerchantPhoto(merchant.name)} alt={merchant.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                  <img src={merchant.image_url || getMerchantPhoto(merchant.name)} alt={merchant.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent"></div>
                                   <span className="absolute top-3 right-3 text-[9px] font-bold bg-indigo-600/90 text-white px-2 py-0.5 rounded-lg border border-indigo-400/35 uppercase shadow-md">
                                     {merchant.category}
@@ -1988,8 +2061,12 @@ export default function SecureMultiplatformPlatform() {
                     </button>
 
                     <div className="bg-slate-900/60 p-6 rounded-2xl border border-slate-850 flex items-center gap-4 shadow-xl">
-                      <div className="p-3.5 bg-indigo-600/10 text-indigo-400 rounded-xl border border-indigo-500/20">
-                        <Store className="h-6 w-6" />
+                      <div className="relative shrink-0">
+                        <img
+                          src={selectedMerchant.image_url || getMerchantPhoto(selectedMerchant.name)}
+                          alt={selectedMerchant.name}
+                          className="w-14 h-14 rounded-xl object-cover border border-slate-800 bg-slate-950"
+                        />
                       </div>
                       <div>
                         <h3 className="text-lg font-bold text-white">{selectedMerchant.name}</h3>
@@ -2010,7 +2087,7 @@ export default function SecureMultiplatformPlatform() {
                               <div className="space-y-3">
                                 {/* Cover Photo Makanan Premium */}
                                 <div className="relative h-32 w-full rounded-xl overflow-hidden border border-slate-855 bg-slate-950">
-                                  <img src={getProductPhoto(p.name)} alt={p.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                  <img src={p.image_url || getProductPhoto(p.name)} alt={p.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                                 </div>
                                 <div className="space-y-2">
                                   <div className="flex justify-between items-start gap-2">
@@ -3268,6 +3345,177 @@ export default function SecureMultiplatformPlatform() {
                 className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5"
               >
                 {editMenuLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Simpan Perubahan"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 6. Edit Restaurant Profile Modal */}
+      {isEditingMerchant && myMerchant && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <form onSubmit={handleEditMerchantSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-4 animate-scaleUp">
+            <div className="flex justify-between items-center border-b border-slate-850 pb-3">
+              <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                <Store className="h-4.5 w-4.5 text-indigo-400" />
+                Edit Profil Toko UMKM
+              </h4>
+              <button
+                type="button"
+                onClick={() => setIsEditingMerchant(false)}
+                className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {editStoreError && (
+              <p className="text-rose-400 text-xs bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl">{editStoreError}</p>
+            )}
+
+            <div className="space-y-3.5 max-h-[70vh] overflow-y-auto pr-1">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Nama Toko / UMKM</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Bakso Mercon Bu Ani"
+                  value={editStoreName}
+                  onChange={e => setEditStoreName(e.target.value)}
+                  className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none w-full"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Kategori Kuliner</label>
+                <select
+                  value={editStoreCategory}
+                  onChange={e => setEditStoreCategory(e.target.value)}
+                  className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-3 py-2.5 text-xs text-slate-100 outline-none w-full cursor-pointer"
+                >
+                  <option value="Kuliner Makanan">Kuliner Makanan</option>
+                  <option value="Camilan & Jajanan">Camilan & Jajanan</option>
+                  <option value="Minuman Dingin/Hangat">Minuman Dingin/Hangat</option>
+                  <option value="Kue & Roti Manis">Kue & Roti Manis</option>
+                  <option value="Bahan Pokok & Sembako">Bahan Pokok & Sembako</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Alamat Dapur / Toko</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Jl. Anggrek No. 12, Sunter"
+                  value={editStoreAddress}
+                  onChange={e => setEditStoreAddress(e.target.value)}
+                  className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none w-full"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Deskripsi Singkat Toko</label>
+                <textarea
+                  placeholder="Jelaskan keistimewaan rasa kuliner atau jam buka..."
+                  value={editStoreDesc}
+                  onChange={e => setEditStoreDesc(e.target.value)}
+                  className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none w-full resize-none"
+                  rows={2}
+                />
+              </div>
+
+              {/* Restaurant Storefront Photo Upload Area */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-3">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">Foto Toko / Restoran</label>
+                
+                {/* File Upload Trigger & Preview Area */}
+                <div className="relative border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-xl p-4 transition-all bg-slate-900/30 flex flex-col items-center justify-center min-h-[110px] text-center">
+                  {editStoreImageURL ? (
+                    <div className="w-full flex flex-col items-center space-y-2 relative">
+                      <img
+                        src={editStoreImageURL}
+                        alt="Preview Resto"
+                        className="max-h-24 object-cover rounded-lg border border-slate-800 shadow"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditStoreImageURL("")}
+                        className="text-[10px] font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/20 transition-all"
+                      >
+                        Hapus Foto
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer flex flex-col items-center justify-center space-y-1.5 w-full h-full py-2">
+                      <Upload className="h-6 w-6 text-slate-500 animate-pulse" />
+                      <span className="text-[10px] text-slate-300 font-bold">Pilih / Upload Foto Toko</span>
+                      <span className="text-[9px] text-slate-500">Klik untuk menjelajahi galeri HP / file komputer</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            try {
+                              const compressed = await compressAndConvertToBase64(file);
+                              setEditStoreImageURL(compressed);
+                            } catch (err) {
+                              console.error("Gagal mengompres gambar:", err);
+                              alert("Gagal mengolah file gambar. Coba gambar lain.");
+                            }
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Preset Facade Fallbacks */}
+                <div className="space-y-1">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Atau pilih preset cepat:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditStoreImageURL("https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=500")}
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                    >
+                      🍛 Padang
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditStoreImageURL("https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&q=80&w=500")}
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                    >
+                      🍜 Kedai Makan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditStoreImageURL("https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=500")}
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                    >
+                      ☕ Cafe Modern
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="pt-2 flex gap-3 border-t border-slate-850">
+              <button
+                type="button"
+                onClick={() => setIsEditingMerchant(false)}
+                className="flex-1 py-2.5 bg-slate-950 hover:bg-slate-850 text-slate-400 rounded-xl text-xs font-bold transition-all border border-slate-850"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={editStoreLoading}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5"
+              >
+                {editStoreLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Simpan Profil"}
               </button>
             </div>
           </form>
