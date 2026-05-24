@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.next/
+out/
+build/
+dist/
+bin/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDEs & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go binary and workspace
+backend/backend
+backend/.env
+go.work
