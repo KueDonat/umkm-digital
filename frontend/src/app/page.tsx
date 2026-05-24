@@ -33,6 +33,7 @@ import {
   X,
   Send,
   Image,
+  Edit3,
 } from "lucide-react";
 
 // Tipe Data
@@ -54,6 +55,7 @@ interface Product {
   stock: number;
   is_pre_order: boolean;
   pre_order_days: number;
+  image_url?: string;
 }
 
 interface Order {
@@ -148,8 +150,21 @@ export default function SecureMultiplatformPlatform() {
   const [newMenuStock, setNewMenuStock] = useState("");
   const [newMenuIsPO, setNewMenuIsPO] = useState(false);
   const [newMenuPODays, setNewMenuPODays] = useState("2");
+  const [newMenuImageURL, setNewMenuImageURL] = useState("");
   const [menuError, setMenuError] = useState("");
   const [menuLoading, setMenuLoading] = useState(false);
+
+  // States Edit Menu (Penjual)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editMenuName, setEditMenuName] = useState("");
+  const [editMenuDesc, setEditMenuDesc] = useState("");
+  const [editMenuPrice, setEditMenuPrice] = useState("");
+  const [editMenuStock, setEditMenuStock] = useState("");
+  const [editMenuIsPO, setEditMenuIsPO] = useState(false);
+  const [editMenuPODays, setEditMenuPODays] = useState("2");
+  const [editMenuImageURL, setEditMenuImageURL] = useState("");
+  const [editMenuLoading, setEditMenuLoading] = useState(false);
+  const [editMenuError, setEditMenuError] = useState("");
 
   // States Pembeli / E-Commerce (GoFood)
   const [searchStoreQuery, setSearchStoreQuery] = useState("");
@@ -1204,6 +1219,7 @@ export default function SecureMultiplatformPlatform() {
           stock: parseInt(newMenuStock),
           is_pre_order: newMenuIsPO,
           pre_order_days: newMenuIsPO ? parseInt(newMenuPODays) : 0,
+          image_url: newMenuImageURL,
         }),
       });
 
@@ -1215,6 +1231,7 @@ export default function SecureMultiplatformPlatform() {
         setNewMenuPrice("");
         setNewMenuStock("");
         setNewMenuIsPO(false);
+        setNewMenuImageURL("");
         alert("Menu baru berhasil dipublikasikan!");
       } else {
         setMenuError(data.error || "Gagal mempublikasikan menu.");
@@ -1223,6 +1240,59 @@ export default function SecureMultiplatformPlatform() {
       setMenuError("Gagal menghubungi server API.");
     } finally {
       setMenuLoading(false);
+    }
+  };
+
+  const openEditMenuModal = (product: Product) => {
+    setEditingProduct(product);
+    setEditMenuName(product.name);
+    setEditMenuDesc(product.description || "");
+    setEditMenuPrice(product.price.toString());
+    setEditMenuStock(product.stock.toString());
+    setEditMenuIsPO(product.is_pre_order);
+    setEditMenuPODays(product.pre_order_days ? product.pre_order_days.toString() : "2");
+    setEditMenuImageURL(product.image_url || "");
+    setEditMenuError("");
+  };
+
+  const handleEditMenuSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct || !token) return;
+    setEditMenuLoading(true);
+    setEditMenuError("");
+    try {
+      const res = await fetch(`${API_URL}/products/${editingProduct.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editMenuName,
+          description: editMenuDesc,
+          price: parseFloat(editMenuPrice),
+          stock: parseInt(editMenuStock),
+          is_pre_order: editMenuIsPO,
+          pre_order_days: editMenuIsPO ? parseInt(editMenuPODays) : 0,
+          image_url: editMenuImageURL,
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showPremiumAlert("Menu berhasil diperbarui!", "Sukses");
+        if (myMerchant) {
+          fetchMyProducts(myMerchant.id);
+        } else {
+          setProducts(products.map(p => p.id === editingProduct.id ? data : p));
+        }
+        setEditingProduct(null);
+      } else {
+        setEditMenuError(data.error || "Gagal memperbarui menu.");
+      }
+    } catch (err) {
+      setEditMenuError("Koneksi gagal.");
+    } finally {
+      setEditMenuLoading(false);
     }
   };
 
@@ -1604,6 +1674,54 @@ export default function SecureMultiplatformPlatform() {
                             )}
                           </div>
 
+                          <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-2">
+                            <label className="text-xs font-bold text-slate-200 block">Foto Makanan / Minuman</label>
+                            <input
+                              type="text"
+                              placeholder="URL Foto (e.g. Unsplash / Imgur)"
+                              value={newMenuImageURL}
+                              onChange={e => setNewMenuImageURL(e.target.value)}
+                              className="bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-xs text-slate-100 outline-none w-full"
+                            />
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&q=80&w=500")}
+                                className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                              >
+                                🍗 Ayam
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&q=80&w=500")}
+                                className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                              >
+                                🍜 Mie/Bakso
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&q=80&w=500")}
+                                className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                              >
+                                🍚 Nasi
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=500")}
+                                className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                              >
+                                ☕ Kopi
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=500")}
+                                className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                              >
+                                🍩 Roti/Kue
+                              </button>
+                            </div>
+                          </div>
+
                           <button
                             type="submit"
                             className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all"
@@ -1656,23 +1774,41 @@ export default function SecureMultiplatformPlatform() {
                           <div className="divide-y divide-slate-900">
                             {products.map(p => (
                               <div key={p.id} className="p-5 flex items-center justify-between hover:bg-slate-900/10 transition-colors">
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold text-slate-200 text-sm">{p.name}</span>
-                                    {p.is_pre_order ? (
-                                      <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[9px] font-bold rounded border border-amber-500/20">PO {p.pre_order_days} Hari</span>
-                                    ) : (
-                                      <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[9px] font-bold rounded border border-emerald-500/20">⚡ Ready</span>
-                                    )}
+                                <div className="flex items-center">
+                                  <img
+                                    src={p.image_url || getProductPhoto(p.name)}
+                                    alt={p.name}
+                                    className="w-12 h-12 rounded-lg object-cover mr-3.5 shrink-0 border border-slate-800 bg-slate-950"
+                                  />
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-slate-200 text-sm">{p.name}</span>
+                                      {p.is_pre_order ? (
+                                        <span className="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-[9px] font-bold rounded border border-amber-500/20">PO {p.pre_order_days} Hari</span>
+                                      ) : (
+                                        <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[9px] font-bold rounded border border-emerald-500/20">⚡ Ready</span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-1">{p.description}</p>
+                                    <p className="text-[10px] text-indigo-400 font-bold mt-1">Rp {p.price.toLocaleString("id-ID")} • Stok: {p.stock}</p>
                                   </div>
-                                  <p className="text-xs text-slate-500 mt-1">{p.description}</p>
                                 </div>
-                                <button
-                                  onClick={() => handleDeleteMenu(p.id)}
-                                  className="p-2.5 bg-slate-950 border border-slate-850 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 rounded-xl"
-                                >
-                                  <Trash2 className="h-4.5 w-4.5" />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => openEditMenuModal(p)}
+                                    className="p-2.5 bg-slate-950 border border-slate-850 hover:bg-indigo-500/10 text-slate-400 hover:text-indigo-400 rounded-xl transition"
+                                    title="Edit Menu"
+                                  >
+                                    <Edit3 className="h-4.5 w-4.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteMenu(p.id)}
+                                    className="p-2.5 bg-slate-950 border border-slate-850 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 rounded-xl transition"
+                                    title="Hapus Menu"
+                                  >
+                                    <Trash2 className="h-4.5 w-4.5" />
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -2841,6 +2977,173 @@ export default function SecureMultiplatformPlatform() {
                 className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5"
               >
                 {ratingBuyerSubmitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Simpan Penilaian"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 5. Edit Menu Modal */}
+      {editingProduct && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <form onSubmit={handleEditMenuSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-4 animate-scaleUp">
+            <div className="flex justify-between items-center border-b border-slate-850 pb-3">
+              <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                <Edit3 className="h-4.5 w-4.5 text-indigo-400" />
+                Edit Menu Makanan
+              </h4>
+              <button
+                type="button"
+                onClick={() => setEditingProduct(null)}
+                className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {editMenuError && (
+              <p className="text-rose-400 text-xs bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl">{editMenuError}</p>
+            )}
+
+            <div className="space-y-3.5 max-h-[70vh] overflow-y-auto pr-1">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Nama Makanan</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Nasi Goreng Spesial"
+                  value={editMenuName}
+                  onChange={e => setEditMenuName(e.target.value)}
+                  className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none w-full"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Deskripsi Hidangan</label>
+                <textarea
+                  placeholder="Deskripsi bahan, porsi, rasa..."
+                  value={editMenuDesc}
+                  onChange={e => setEditMenuDesc(e.target.value)}
+                  className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none w-full resize-none"
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Harga Jual (Rp)</label>
+                  <input
+                    type="number"
+                    placeholder="Harga"
+                    value={editMenuPrice}
+                    onChange={e => setEditMenuPrice(e.target.value)}
+                    className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-3 py-2.5 text-xs text-slate-100 outline-none w-full"
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">Stok Porsi</label>
+                  <input
+                    type="number"
+                    placeholder="Stok"
+                    value={editMenuStock}
+                    onChange={e => setEditMenuStock(e.target.value)}
+                    className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-3 py-2.5 text-xs text-slate-100 outline-none w-full"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Pre-Order Section */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-2">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editMenuIsPO}
+                    onChange={e => setEditMenuIsPO(e.target.checked)}
+                    className="h-4.5 w-4.5 rounded border-slate-800 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs font-bold text-slate-200">Menu Pre-Order (PO)</span>
+                </label>
+                {editMenuIsPO && (
+                  <div className="flex items-center gap-2 pt-1 animate-fadeIn">
+                    <span className="text-[10px] text-slate-400">Estimasi PO:</span>
+                    <input
+                      type="number"
+                      value={editMenuPODays}
+                      onChange={e => setEditMenuPODays(e.target.value)}
+                      className="bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-lg px-2 py-1 text-xs text-slate-200 w-16 outline-none"
+                    />
+                    <span className="text-[10px] text-slate-400">Hari</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Food Photo Link & Presets */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">Foto Makanan / Minuman</label>
+                <input
+                  type="text"
+                  placeholder="URL Foto (e.g. Unsplash / Imgur)"
+                  value={editMenuImageURL}
+                  onChange={e => setEditMenuImageURL(e.target.value)}
+                  className="bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-xs text-slate-100 outline-none w-full"
+                />
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&q=80&w=500")}
+                    className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                  >
+                    🍗 Ayam
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&q=80&w=500")}
+                    className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                  >
+                    🍜 Mie/Bakso
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&q=80&w=500")}
+                    className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                  >
+                    🍚 Nasi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=500")}
+                    className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                  >
+                    ☕ Kopi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=500")}
+                    className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                  >
+                    🍩 Roti/Kue
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="pt-2 flex gap-3 border-t border-slate-850">
+              <button
+                type="button"
+                onClick={() => setEditingProduct(null)}
+                className="flex-1 py-2.5 bg-slate-950 hover:bg-slate-850 text-slate-400 rounded-xl text-xs font-bold transition-all border border-slate-850"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={editMenuLoading}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5"
+              >
+                {editMenuLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Simpan Perubahan"}
               </button>
             </div>
           </form>

@@ -112,6 +112,7 @@ func UpdateProduct(c *gin.Context) {
 	product.Stock = input.Stock
 	product.IsPreOrder = input.IsPreOrder
 	product.PreOrderDays = input.PreOrderDays
+	product.ImageURL = input.ImageURL
 
 	if err := config.DB.Save(&product).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui produk"})

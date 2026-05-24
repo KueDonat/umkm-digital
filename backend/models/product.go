@@ -12,6 +12,7 @@ type Product struct {
 	Stock       int       `gorm:"type:int;not null;default:0" json:"stock"`
 	IsPreOrder  bool      `gorm:"type:boolean;default:false;not null" json:"is_pre_order"` // Sistem Pre-Order (PO)
 	PreOrderDays int      `gorm:"type:int;default:0;not null" json:"pre_order_days"` // Lama PO dalam hari (misal: PO 2 Hari)
+	ImageURL    string    `gorm:"type:text" json:"image_url"` // URL Foto makanan
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
