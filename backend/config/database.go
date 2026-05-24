@@ -24,17 +24,21 @@ func ConnectDatabase() {
 	}
 
 	// Ambil variabel environment
-	host := os.Getenv("DB_HOST")
-	port := os.Getenv("DB_PORT")
-	user := os.Getenv("DB_USER")
-	password := os.Getenv("DB_PASSWORD")
-	dbname := os.Getenv("DB_NAME")
-	sslmode := os.Getenv("DB_SSLMODE")
-	timezone := os.Getenv("DB_TIMEZONE")
-
-	// Format DSN (Data Source Name) untuk PostgreSQL
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=%s",
-		host, user, password, dbname, port, sslmode, timezone)
+	dbURL := os.Getenv("DATABASE_URL")
+	var dsn string
+	if dbURL != "" {
+		dsn = dbURL
+	} else {
+		host := os.Getenv("DB_HOST")
+		port := os.Getenv("DB_PORT")
+		user := os.Getenv("DB_USER")
+		password := os.Getenv("DB_PASSWORD")
+		dbname := os.Getenv("DB_NAME")
+		sslmode := os.Getenv("DB_SSLMODE")
+		timezone := os.Getenv("DB_TIMEZONE")
+		dsn = fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=%s",
+			host, user, password, dbname, port, sslmode, timezone)
+	}
 
 	// Koneksi ke Database
 	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
