@@ -34,6 +34,7 @@ import {
   Send,
   Image,
   Edit3,
+  Upload,
 } from "lucide-react";
 
 // Tipe Data
@@ -101,6 +102,48 @@ const MOCK_POD_PHOTOS = [
   { name: "Diserahkan langsung ke Pembeli", url: "https://images.unsplash.com/photo-1585776245991-cf89dd7fc73a?auto=format&fit=crop&q=80&w=300" },
   { name: "Paket digantung di gagang pintu", url: "https://images.unsplash.com/photo-1590247813693-5541d1c609fd?auto=format&fit=crop&q=80&w=300" },
 ];
+
+// Helper function to compress image and convert to Base64
+const compressAndConvertToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 500;
+        const MAX_HEIGHT = 500;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // Compress as JPEG with 0.7 quality
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        resolve(dataUrl);
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
 
 export default function SecureMultiplatformPlatform() {
   // Status Koneksi API
@@ -1674,51 +1717,92 @@ export default function SecureMultiplatformPlatform() {
                             )}
                           </div>
 
-                          <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-2">
+                          <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-3">
                             <label className="text-xs font-bold text-slate-200 block">Foto Makanan / Minuman</label>
-                            <input
-                              type="text"
-                              placeholder="URL Foto (e.g. Unsplash / Imgur)"
-                              value={newMenuImageURL}
-                              onChange={e => setNewMenuImageURL(e.target.value)}
-                              className="bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-xs text-slate-100 outline-none w-full"
-                            />
-                            <div className="flex flex-wrap gap-1.5 pt-1">
-                              <button
-                                type="button"
-                                onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&q=80&w=500")}
-                                className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
-                              >
-                                🍗 Ayam
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&q=80&w=500")}
-                                className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
-                              >
-                                🍜 Mie/Bakso
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&q=80&w=500")}
-                                className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
-                              >
-                                🍚 Nasi
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=500")}
-                                className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
-                              >
-                                ☕ Kopi
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=500")}
-                                className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
-                              >
-                                🍩 Roti/Kue
-                              </button>
+                            
+                            {/* File Upload Trigger & Preview Area */}
+                            <div className="relative border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-xl p-4 transition-all bg-slate-900/30 flex flex-col items-center justify-center min-h-[110px] text-center">
+                              {newMenuImageURL ? (
+                                <div className="w-full flex flex-col items-center space-y-2 relative">
+                                  <img
+                                    src={newMenuImageURL}
+                                    alt="Preview"
+                                    className="max-h-24 object-cover rounded-lg border border-slate-800 shadow"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setNewMenuImageURL("")}
+                                    className="text-[10px] font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/20 transition-all"
+                                  >
+                                    Hapus Foto
+                                  </button>
+                                </div>
+                              ) : (
+                                <label className="cursor-pointer flex flex-col items-center justify-center space-y-1.5 w-full h-full py-2">
+                                  <Upload className="h-6 w-6 text-slate-500 animate-pulse" />
+                                  <span className="text-[10px] text-slate-300 font-bold">Pilih / Upload Foto Makanan</span>
+                                  <span className="text-[9px] text-slate-500">Klik untuk menjelajahi galeri HP / file komputer</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        try {
+                                          const compressed = await compressAndConvertToBase64(file);
+                                          setNewMenuImageURL(compressed);
+                                        } catch (err) {
+                                          console.error("Gagal mengompres gambar:", err);
+                                          alert("Gagal mengolah file gambar. Coba gambar lain.");
+                                        }
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+
+                            {/* Preset Fallbacks */}
+                            <div className="space-y-1">
+                              <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Atau pilih preset cepat:</span>
+                              <div className="flex flex-wrap gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&q=80&w=500")}
+                                  className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                                >
+                                  🍗 Ayam
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&q=80&w=500")}
+                                  className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                                >
+                                  🍜 Mie/Bakso
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&q=80&w=500")}
+                                  className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                                >
+                                  🍚 Nasi
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=500")}
+                                  className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                                >
+                                  ☕ Kopi
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewMenuImageURL("https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=500")}
+                                  className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                                >
+                                  🍩 Roti/Kue
+                                </button>
+                              </div>
                             </div>
                           </div>
 
@@ -3079,52 +3163,92 @@ export default function SecureMultiplatformPlatform() {
                 )}
               </div>
 
-              {/* Food Photo Link & Presets */}
-              <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-2">
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-3">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">Foto Makanan / Minuman</label>
-                <input
-                  type="text"
-                  placeholder="URL Foto (e.g. Unsplash / Imgur)"
-                  value={editMenuImageURL}
-                  onChange={e => setEditMenuImageURL(e.target.value)}
-                  className="bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-lg px-3 py-2 text-xs text-slate-100 outline-none w-full"
-                />
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&q=80&w=500")}
-                    className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
-                  >
-                    🍗 Ayam
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&q=80&w=500")}
-                    className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
-                  >
-                    🍜 Mie/Bakso
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&q=80&w=500")}
-                    className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
-                  >
-                    🍚 Nasi
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=500")}
-                    className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
-                  >
-                    ☕ Kopi
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=500")}
-                    className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
-                  >
-                    🍩 Roti/Kue
-                  </button>
+                
+                {/* File Upload Trigger & Preview Area */}
+                <div className="relative border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-xl p-4 transition-all bg-slate-900/30 flex flex-col items-center justify-center min-h-[110px] text-center">
+                  {editMenuImageURL ? (
+                    <div className="w-full flex flex-col items-center space-y-2 relative">
+                      <img
+                        src={editMenuImageURL}
+                        alt="Preview"
+                        className="max-h-24 object-cover rounded-lg border border-slate-800 shadow"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditMenuImageURL("")}
+                        className="text-[10px] font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/20 transition-all"
+                      >
+                        Hapus Foto
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer flex flex-col items-center justify-center space-y-1.5 w-full h-full py-2">
+                      <Upload className="h-6 w-6 text-slate-500 animate-pulse" />
+                      <span className="text-[10px] text-slate-300 font-bold">Pilih / Upload Foto Makanan</span>
+                      <span className="text-[9px] text-slate-500">Klik untuk menjelajahi galeri HP / file komputer</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            try {
+                              const compressed = await compressAndConvertToBase64(file);
+                              setEditMenuImageURL(compressed);
+                            } catch (err) {
+                              console.error("Gagal mengompres gambar:", err);
+                              alert("Gagal mengolah file gambar. Coba gambar lain.");
+                            }
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Preset Fallbacks */}
+                <div className="space-y-1">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Atau pilih preset cepat:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&q=80&w=500")}
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                    >
+                      🍗 Ayam
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&q=80&w=500")}
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                    >
+                      🍜 Mie/Bakso
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&q=80&w=500")}
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                    >
+                      🍚 Nasi
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&q=80&w=500")}
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                    >
+                      ☕ Kopi
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditMenuImageURL("https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=500")}
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-850 text-slate-300 rounded text-[10px] transition"
+                    >
+                      🍩 Roti/Kue
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
