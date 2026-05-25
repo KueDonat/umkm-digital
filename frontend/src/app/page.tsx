@@ -1205,6 +1205,14 @@ export default function SecureMultiplatformPlatform() {
 
       const data = await res.json();
       if (res.ok) {
+        // Clear all previous user states to prevent leakage between sessions
+        setOrders([]);
+        setCart([]);
+        setSelectedMerchant(null);
+        setActiveChatOrder(null);
+        setChatMessages([]);
+        setNewChatMessage("");
+
         localStorage.setItem("jwt_token", data.token);
         localStorage.setItem("user_profile", JSON.stringify(data.user));
         setToken(data.token);
@@ -1235,6 +1243,14 @@ export default function SecureMultiplatformPlatform() {
 
       const data = await res.json();
       if (res.ok) {
+        // Clear all previous user states to prevent leakage between sessions
+        setOrders([]);
+        setCart([]);
+        setSelectedMerchant(null);
+        setActiveChatOrder(null);
+        setChatMessages([]);
+        setNewChatMessage("");
+
         localStorage.setItem("jwt_token", data.token);
         localStorage.setItem("user_profile", JSON.stringify(data.user));
         setToken(data.token);
@@ -1274,6 +1290,14 @@ export default function SecureMultiplatformPlatform() {
 
       const data = await res.json();
       if (res.ok) {
+        // Clear all previous user states to prevent leakage between sessions
+        setOrders([]);
+        setCart([]);
+        setSelectedMerchant(null);
+        setActiveChatOrder(null);
+        setChatMessages([]);
+        setNewChatMessage("");
+
         localStorage.setItem("jwt_token", data.token);
         localStorage.setItem("user_profile", JSON.stringify(data.user));
         setToken(data.token);
@@ -1423,6 +1447,14 @@ export default function SecureMultiplatformPlatform() {
     setUser(null);
     setCart([]);
     setSelectedMerchant(null);
+    setOrders([]);
+    setMyMerchant(null);
+    setActiveChatOrder(null);
+    setChatMessages([]);
+    setNewChatMessage("");
+    setSelectedProductForOrder(null);
+    setRatingOrder(null);
+    setRatingBuyerOrder(null);
   };
 
   return (
