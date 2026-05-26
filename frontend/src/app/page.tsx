@@ -36,6 +36,7 @@ import {
   Edit3,
   Upload,
   Settings,
+  Menu,
 } from "lucide-react";
 
 // Tipe Data
@@ -220,6 +221,7 @@ export default function SecureMultiplatformPlatform() {
   const [editStoreImageURL, setEditStoreImageURL] = useState("");
   const [editStoreLoading, setEditStoreLoading] = useState(false);
   const [editStoreError, setEditStoreError] = useState("");
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // States Pembeli / E-Commerce (GoFood)
   const [searchStoreQuery, setSearchStoreQuery] = useState("");
@@ -1479,23 +1481,60 @@ export default function SecureMultiplatformPlatform() {
           </div>
 
           <div className="flex items-center gap-3">
-            {token && user && (
-              <div className="bg-slate-900/60 px-3.5 py-1.5 rounded-xl border border-slate-800 flex items-center gap-2 text-xs text-slate-350 animate-fadeIn">
-                <User className="h-3.5 w-3.5 text-indigo-400" />
-                <span className="font-semibold">{user.name} ({user.role.toUpperCase()})</span>
+            {/* Desktop Menu */}
+            {token && (
+              <div className="hidden md:flex items-center gap-3">
+                {user && (
+                  <div className="bg-slate-900/60 px-3.5 py-1.5 rounded-xl border border-slate-800 flex items-center gap-2 text-xs text-slate-350 animate-fadeIn">
+                    <User className="h-3.5 w-3.5 text-indigo-400" />
+                    <span className="font-semibold">{user.name} ({user.role.toUpperCase()})</span>
+                  </div>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-855 text-slate-300 hover:text-white rounded-xl text-xs font-bold border border-slate-800 flex items-center gap-1 transition-all"
+                >
+                  <LogOut className="h-3.5 w-3.5" /> Keluar
+                </button>
               </div>
             )}
 
+            {/* Mobile Menu Button (Hamburger) */}
             {token && (
               <button
-                onClick={handleLogout}
-                className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold border border-slate-800 flex items-center gap-1 transition-all"
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                className="md:hidden p-2.5 bg-slate-900 hover:bg-slate-850 text-slate-300 hover:text-white rounded-xl border border-slate-800 transition-all flex items-center justify-center"
+                title="Menu"
               >
-                <LogOut className="h-3.5 w-3.5" /> Keluar
+                {showMobileMenu ? <X className="h-4.5 w-4.5" /> : <Menu className="h-4.5 w-4.5" />}
               </button>
             )}
           </div>
         </div>
+
+        {/* Mobile Dropdown Panel */}
+        {token && showMobileMenu && (
+          <div className="md:hidden bg-slate-950/95 backdrop-blur-md border-t border-slate-900 px-4 py-4 space-y-3 animate-fadeIn flex flex-col">
+            {user && (
+              <div className="bg-slate-900/60 px-4 py-3 rounded-xl border border-slate-850 flex items-center gap-2.5 text-xs text-slate-200">
+                <User className="h-4.5 w-4.5 text-indigo-400 font-bold" />
+                <div className="flex flex-col">
+                  <span className="font-bold text-white leading-tight">{user.name}</span>
+                  <span className="text-[10px] text-slate-400 font-medium uppercase mt-0.5 tracking-wider">{user.role} Account</span>
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => {
+                setShowMobileMenu(false);
+                handleLogout();
+              }}
+              className="w-full py-3 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 rounded-xl text-xs font-bold transition-all border border-rose-500/20 flex items-center justify-center gap-2"
+            >
+              <LogOut className="h-4.5 w-4.5" /> Keluar dari Sistem
+            </button>
+          </div>
+        )}
       </nav>
 
       {/* Main Container */}
