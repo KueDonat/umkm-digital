@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Layers,
   CheckCircle,
@@ -227,6 +227,67 @@ export default function SecureMultiplatformPlatform() {
   const [searchStoreQuery, setSearchStoreQuery] = useState("");
   const [cart, setCart] = useState<{ product: Product; qty: number; toppings?: string; notes?: string }[]>([]);
   const [shippingAddress, setShippingAddress] = useState("");
+
+  // States Peta Koordinat (Leaflet Picker) & Helper
+  const [checkoutLatLng, setCheckoutLatLng] = useState<[number, number]>([-6.1996, 106.8601]);
+  const [regStoreLatLng, setRegStoreLatLng] = useState<[number, number]>([-6.2146, 106.8451]);
+  const [editStoreLatLng, setEditStoreLatLng] = useState<[number, number]>([-6.2146, 106.8451]);
+
+  const checkoutMapRef = useRef<any>(null);
+  const checkoutMarkerRef = useRef<any>(null);
+  const regMerchantMapRef = useRef<any>(null);
+  const regMerchantMarkerRef = useRef<any>(null);
+  const editMerchantMapRef = useRef<any>(null);
+  const editMerchantMarkerRef = useRef<any>(null);
+
+  const formatAddressText = (addr: string) => {
+    if (!addr) return "";
+    return addr.includes("||") ? addr.split("||")[0] : addr;
+  };
+
+  const getOrderOriginCoords = (o: any): [number, number] => {
+    let merchantAddress = "";
+    if (user?.role === "penjual" && myMerchant) {
+      merchantAddress = myMerchant.address;
+    } else {
+      const m = merchants.find(merch => merch.owner_id === o.seller_id);
+      if (m) {
+        merchantAddress = m.address;
+      }
+    }
+    
+    if (merchantAddress && merchantAddress.includes("||")) {
+      const parts = merchantAddress.split("||");
+      if (parts.length > 1) {
+        const coords = parts[1].split(",");
+        if (coords.length === 2) {
+          const lat = parseFloat(coords[0]);
+          const lng = parseFloat(coords[1]);
+          if (!isNaN(lat) && !isNaN(lng)) {
+            return [lat, lng];
+          }
+        }
+      }
+    }
+    return [-6.2146, 106.8451]; // Default fallback
+  };
+
+  const getMerchantCoords = (m: any): [number, number] => {
+    if (m && m.address && m.address.includes("||")) {
+      const parts = m.address.split("||");
+      if (parts.length > 1) {
+        const coords = parts[1].split(",");
+        if (coords.length === 2) {
+          const lat = parseFloat(coords[0]);
+          const lng = parseFloat(coords[1]);
+          if (!isNaN(lat) && !isNaN(lng)) {
+            return [lat, lng];
+          }
+        }
+      }
+    }
+    return [-6.2146, 106.8451]; // Default
+  };
   
   // 1A. STATES BARU FITUR EVALUASI & RATING
   const [customAlert, setCustomAlert] = useState<{
@@ -584,7 +645,7 @@ export default function SecureMultiplatformPlatform() {
           if (btnContainer && (window as any).google) {
             (window as any).google.accounts.id.renderButton(
               btnContainer,
-              { theme: "filled_blue", size: "large", width: 340, shape: "rectangular" }
+              { theme: "filled_blue", size: "large", width: 290, shape: "rectangular" }
             );
           }
         }, 150);
@@ -624,7 +685,7 @@ export default function SecureMultiplatformPlatform() {
           if (btnContainer && (window as any).google) {
             (window as any).google.accounts.id.renderButton(
               btnContainer,
-              { theme: "filled_blue", size: "large", width: 340, shape: "rectangular" }
+              { theme: "filled_blue", size: "large", width: 290, shape: "rectangular" }
             );
           }
         }, 300);
@@ -702,8 +763,22 @@ export default function SecureMultiplatformPlatform() {
       const progress = gpsProgress[o.id] || 0.05;
       
       // Rute dari Dapur (Origin) ke Pembeli (Tujuan)
-      const originLatLng = [-6.2146, 106.8451];
-      const destLatLng = [-6.1996, 106.8601];
+      const originLatLng = getOrderOriginCoords(o);
+      
+      let destLatLng: [number, number] = [-6.1996, 106.8601];
+      if (o.shipping_address && o.shipping_address.includes("||")) {
+        const parts = o.shipping_address.split("||");
+        if (parts.length > 1) {
+          const coords = parts[1].split(",");
+          if (coords.length === 2) {
+            const lat = parseFloat(coords[0]);
+            const lng = parseFloat(coords[1]);
+            if (!isNaN(lat) && !isNaN(lng)) {
+              destLatLng = [lat, lng];
+            }
+          }
+        }
+      }
       
       const currentLat = originLatLng[0] + (progress * (destLatLng[0] - originLatLng[0]));
       const currentLng = originLatLng[1] + (progress * (destLatLng[1] - originLatLng[1]));
@@ -769,6 +844,261 @@ export default function SecureMultiplatformPlatform() {
       (mapContainer as any)._courier_marker = courierMarker;
     });
   }, [leafletLoaded, orders, gpsProgress]);
+
+  // 1. useEffect for Checkout Map Picker
+  useEffect(() => {
+    if (!leafletLoaded || typeof window === "undefined") return;
+    const L = (window as any).L;
+    if (!L) return;
+
+    let activeMap: any = null;
+
+    const timer = setTimeout(() => {
+      const mapContainer = document.getElementById("checkout-map");
+      if (!mapContainer) {
+        if (checkoutMapRef.current) {
+          checkoutMapRef.current.remove();
+          checkoutMapRef.current = null;
+          checkoutMarkerRef.current = null;
+        }
+        return;
+      }
+
+      if (checkoutMapRef.current) return;
+
+      let centerLatLng: [number, number] = [-6.1996, 106.8601];
+      if (selectedMerchant) {
+        centerLatLng = getMerchantCoords(selectedMerchant);
+        centerLatLng = [centerLatLng[0] + 0.003, centerLatLng[1] + 0.003];
+      }
+
+      const map = L.map("checkout-map", {
+        zoomControl: true,
+        attributionControl: false
+      }).setView(centerLatLng, 14);
+
+      checkoutMapRef.current = map;
+      activeMap = map;
+
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 20
+      }).addTo(map);
+
+      const storeIcon = L.divIcon({
+        html: `<div class="p-1 bg-emerald-500 text-white rounded-lg border border-white shadow flex items-center justify-center animate-pulse" style="width: 24px; height: 24px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"></path><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"></path><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"></path></svg></div>`,
+        className: 'custom-leaflet-icon-container',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+
+      if (selectedMerchant) {
+        L.marker(getMerchantCoords(selectedMerchant), { icon: storeIcon }).addTo(map).bindPopup("Dapur Penjual");
+      }
+
+      const buyerIcon = L.divIcon({
+        html: `<div class="p-1.5 bg-indigo-500 text-white rounded-lg border border-white shadow flex items-center justify-center animate-bounce" style="width: 28px; height: 28px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>`,
+        className: 'custom-leaflet-icon-container',
+        iconSize: [28, 28],
+        iconAnchor: [14, 28]
+      });
+
+      const marker = L.marker(centerLatLng, {
+        icon: buyerIcon,
+        draggable: true
+      }).addTo(map);
+
+      checkoutMarkerRef.current = marker;
+      setCheckoutLatLng(centerLatLng);
+
+      marker.on("dragend", () => {
+        const pos = marker.getLatLng();
+        setCheckoutLatLng([pos.lat, pos.lng]);
+      });
+
+      map.on("click", (e: any) => {
+        marker.setLatLng(e.latlng);
+        setCheckoutLatLng([e.latlng.lat, e.latlng.lng]);
+      });
+
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 100);
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      if (activeMap) {
+        activeMap.remove();
+        checkoutMapRef.current = null;
+        checkoutMarkerRef.current = null;
+      }
+    };
+  }, [leafletLoaded, cart.length, selectedMerchant]);
+
+  // 2. useEffect for Merchant Registration Map Picker
+  useEffect(() => {
+    if (!leafletLoaded || typeof window === "undefined") return;
+    const L = (window as any).L;
+    if (!L) return;
+
+    let activeMap: any = null;
+
+    const timer = setTimeout(() => {
+      const mapContainer = document.getElementById("reg-merchant-map");
+      if (!mapContainer) {
+        if (regMerchantMapRef.current) {
+          regMerchantMapRef.current.remove();
+          regMerchantMapRef.current = null;
+          regMerchantMarkerRef.current = null;
+        }
+        return;
+      }
+
+      if (regMerchantMapRef.current) return;
+
+      const centerLatLng: [number, number] = [-6.2146, 106.8451];
+
+      const map = L.map("reg-merchant-map", {
+        zoomControl: true,
+        attributionControl: false
+      }).setView(centerLatLng, 14);
+
+      regMerchantMapRef.current = map;
+      activeMap = map;
+
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 20
+      }).addTo(map);
+
+      const storeIcon = L.divIcon({
+        html: `<div class="p-1 bg-emerald-500 text-white rounded-lg border border-white shadow flex items-center justify-center animate-bounce" style="width: 28px; height: 28px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"></path><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"></path><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"></path></svg></div>`,
+        className: 'custom-leaflet-icon-container',
+        iconSize: [28, 28],
+        iconAnchor: [14, 28]
+      });
+
+      const marker = L.marker(centerLatLng, {
+        icon: storeIcon,
+        draggable: true
+      }).addTo(map);
+
+      regMerchantMarkerRef.current = marker;
+      setRegStoreLatLng(centerLatLng);
+
+      marker.on("dragend", () => {
+        const pos = marker.getLatLng();
+        setRegStoreLatLng([pos.lat, pos.lng]);
+      });
+
+      map.on("click", (e: any) => {
+        marker.setLatLng(e.latlng);
+        setRegStoreLatLng([e.latlng.lat, e.latlng.lng]);
+      });
+
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 100);
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      if (activeMap) {
+        activeMap.remove();
+        regMerchantMapRef.current = null;
+        regMerchantMarkerRef.current = null;
+      }
+    };
+  }, [leafletLoaded, myMerchant]);
+
+  // 3. useEffect for Merchant Edit Profile Map Picker
+  useEffect(() => {
+    if (!leafletLoaded || typeof window === "undefined") return;
+    const L = (window as any).L;
+    if (!L) return;
+
+    let activeMap: any = null;
+
+    const timer = setTimeout(() => {
+      const mapContainer = document.getElementById("edit-merchant-map");
+      if (!mapContainer) {
+        if (editMerchantMapRef.current) {
+          editMerchantMapRef.current.remove();
+          editMerchantMapRef.current = null;
+          editMerchantMarkerRef.current = null;
+        }
+        return;
+      }
+
+      if (editMerchantMapRef.current) return;
+
+      let centerLatLng = editStoreLatLng;
+      if (myMerchant && myMerchant.address) {
+        if (myMerchant.address.includes("||")) {
+          const parts = myMerchant.address.split("||");
+          if (parts.length > 1) {
+            const coords = parts[1].split(",");
+            if (coords.length === 2) {
+              const lat = parseFloat(coords[0]);
+              const lng = parseFloat(coords[1]);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                centerLatLng = [lat, lng];
+              }
+            }
+          }
+        }
+      }
+
+      const map = L.map("edit-merchant-map", {
+        zoomControl: true,
+        attributionControl: false
+      }).setView(centerLatLng, 14);
+
+      editMerchantMapRef.current = map;
+      activeMap = map;
+
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 20
+      }).addTo(map);
+
+      const storeIcon = L.divIcon({
+        html: `<div class="p-1 bg-emerald-500 text-white rounded-lg border border-white shadow flex items-center justify-center animate-bounce" style="width: 28px; height: 28px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"></path><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"></path><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"></path></svg></div>`,
+        className: 'custom-leaflet-icon-container',
+        iconSize: [28, 28],
+        iconAnchor: [14, 28]
+      });
+
+      const marker = L.marker(centerLatLng, {
+        icon: storeIcon,
+        draggable: true
+      }).addTo(map);
+
+      editMerchantMarkerRef.current = marker;
+      setEditStoreLatLng(centerLatLng);
+
+      marker.on("dragend", () => {
+        const pos = marker.getLatLng();
+        setEditStoreLatLng([pos.lat, pos.lng]);
+      });
+
+      map.on("click", (e: any) => {
+        marker.setLatLng(e.latlng);
+        setEditStoreLatLng([e.latlng.lat, e.latlng.lng]);
+      });
+
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 100);
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      if (activeMap) {
+        activeMap.remove();
+        editMerchantMapRef.current = null;
+        editMerchantMarkerRef.current = null;
+      }
+    };
+  }, [leafletLoaded, isEditingMerchant]);
 
   // Polling Pesan Chat setiap 3 detik jika box chat sedang dibuka (Live Simulation!)
   useEffect(() => {
@@ -861,8 +1191,8 @@ export default function SecureMultiplatformPlatform() {
         },
         body: JSON.stringify({
           name: regStoreName,
+          address: `${regStoreAddress}||${regStoreLatLng[0]},${regStoreLatLng[1]}`,
           category: regStoreCategory,
-          address: regStoreAddress,
           description: regStoreDesc,
         }),
       });
@@ -870,10 +1200,13 @@ export default function SecureMultiplatformPlatform() {
       const data = await res.json();
       if (res.ok) {
         setMyMerchant(data);
-        fetchMyProducts(data.id);
-        alert("Pendaftaran Toko UMKM Anda Berhasil!");
+        showPremiumAlert("Toko Anda berhasil didaftarkan!", "Sukses");
+        setRegStoreName("");
+        setRegStoreAddress("");
+        setRegStoreDesc("");
+        fetchAllMerchants();
       } else {
-        setRegStoreError(data.error || "Gagal mendaftarkan toko.");
+        setRegStoreError(data.error || "Pendaftaran gagal.");
       }
     } catch (err) {
       setRegStoreError("Koneksi gagal.");
@@ -886,7 +1219,27 @@ export default function SecureMultiplatformPlatform() {
     if (!myMerchant) return;
     setEditStoreName(myMerchant.name);
     setEditStoreCategory(myMerchant.category);
-    setEditStoreAddress(myMerchant.address);
+    
+    const rawAddress = myMerchant.address || "";
+    const textAddress = rawAddress.includes("||") ? rawAddress.split("||")[0] : rawAddress;
+    setEditStoreAddress(textAddress);
+
+    if (rawAddress.includes("||")) {
+      const parts = rawAddress.split("||");
+      if (parts.length > 1) {
+        const coords = parts[1].split(",");
+        if (coords.length === 2) {
+          const lat = parseFloat(coords[0]);
+          const lng = parseFloat(coords[1]);
+          if (!isNaN(lat) && !isNaN(lng)) {
+            setEditStoreLatLng([lat, lng]);
+          }
+        }
+      }
+    } else {
+      setEditStoreLatLng([-6.2146, 106.8451]);
+    }
+
     setEditStoreDesc(myMerchant.description || "");
     setEditStoreImageURL(myMerchant.image_url || "");
     setEditStoreError("");
@@ -907,7 +1260,7 @@ export default function SecureMultiplatformPlatform() {
         },
         body: JSON.stringify({
           name: editStoreName,
-          address: editStoreAddress,
+          address: `${editStoreAddress}||${editStoreLatLng[0]},${editStoreLatLng[1]}`,
           category: editStoreCategory,
           description: editStoreDesc,
           image_url: editStoreImageURL,
@@ -1000,7 +1353,7 @@ export default function SecureMultiplatformPlatform() {
         body: JSON.stringify({
           merchant_id: selectedMerchant.id,
           total_price: totalPrice,
-          shipping_address: shippingAddress,
+          shipping_address: `${shippingAddress}||${checkoutLatLng[0]},${checkoutLatLng[1]}`,
           notes: notesSummary,
           toppings: toppingsSummary,
           tax: tax,
@@ -1749,6 +2102,12 @@ export default function SecureMultiplatformPlatform() {
                           rows={2}
                           required
                         />
+                        {leafletLoaded && (
+                          <div className="space-y-1 mt-2.5">
+                            <span className="text-[9px] text-slate-500 italic block">Geser pin pada peta untuk menandai lokasi tepat dapur Anda:</span>
+                            <div id="reg-merchant-map" className="h-44 w-full rounded-xl border border-slate-850 bg-slate-950 overflow-hidden relative z-10" />
+                          </div>
+                        )}
                       </div>
 
                       <button
@@ -1787,7 +2146,7 @@ export default function SecureMultiplatformPlatform() {
                           </div>
                           <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
                             <span className="bg-slate-950 px-2 py-0.5 rounded text-[10px] font-bold text-indigo-400 border border-slate-850">{myMerchant.category}</span>
-                            <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-slate-500" /> {myMerchant.address}</span>
+                            <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-slate-500" /> {formatAddressText(myMerchant.address)}</span>
                           </div>
                         </div>
                       </div>
@@ -1979,7 +2338,7 @@ export default function SecureMultiplatformPlatform() {
                                     <div>
                                       <span className="text-[9px] font-bold text-slate-500">ORDER ID: #{o.id}</span>
                                       <h5 className="text-xs font-extrabold text-white mt-0.5">Total Harga: Rp {o.total_price.toLocaleString("id-ID")}</h5>
-                                      <p className="text-[10px] text-slate-400">Alamat Kirim: {o.shipping_address}</p>
+                                      <p className="text-[10px] text-slate-400">Alamat Kirim: {formatAddressText(o.shipping_address)}</p>
                                     </div>
                                     <button
                                       onClick={() => handleConfirmOrder(o.id)}
@@ -2110,7 +2469,7 @@ export default function SecureMultiplatformPlatform() {
                               </div>
                               <div className="pt-3.5 mt-3 border-t border-slate-850 flex items-center gap-1.5 text-xs text-slate-500">
                                 <MapPin className="h-4 w-4 text-slate-450 shrink-0" />
-                                <span className="truncate">{merchant.address}</span>
+                                <span className="truncate">{formatAddressText(merchant.address)}</span>
                               </div>
                             </div>
                           );
@@ -2144,7 +2503,7 @@ export default function SecureMultiplatformPlatform() {
                         <p className="text-xs text-slate-400 mt-1">{selectedMerchant.description}</p>
                         <div className="flex items-center gap-2 text-xs text-slate-400 mt-2">
                           <span className="bg-slate-950 px-2 py-0.5 rounded text-[10px] font-bold text-indigo-400 border border-slate-850">{selectedMerchant.category}</span>
-                          <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-slate-400" /> {selectedMerchant.address}</span>
+                          <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-slate-400" /> {formatAddressText(selectedMerchant.address)}</span>
                         </div>
                       </div>
                     </div>
@@ -2266,6 +2625,12 @@ export default function SecureMultiplatformPlatform() {
                                       rows={2}
                                       required
                                     />
+                                    {leafletLoaded && (
+                                      <div className="space-y-1 mt-1">
+                                        <span className="text-[9px] text-slate-500 italic block">Geser pin pada peta untuk menandai lokasi tepat pengiriman Anda:</span>
+                                        <div id="checkout-map" className="h-44 w-full rounded-xl border border-slate-850 bg-slate-950 overflow-hidden relative z-10" />
+                                      </div>
+                                    )}
                                     <button 
                                       type="submit" 
                                       className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition-all"
@@ -2309,7 +2674,7 @@ export default function SecureMultiplatformPlatform() {
                               </span>
                             </div>
                             <h5 className="text-sm font-extrabold text-white">Total: Rp {o.total_price.toLocaleString("id-ID")}</h5>
-                            <p className="text-[10px] text-slate-400 truncate">Alamat: {o.shipping_address}</p>
+                            <p className="text-[10px] text-slate-400 truncate">Alamat: {formatAddressText(o.shipping_address)}</p>
 
                             {/* GPS LIVE TRACKING MAP (Simulasi GPS Seluler Premium) */}
                             {o.status === "dikirim" && (
@@ -2476,7 +2841,7 @@ export default function SecureMultiplatformPlatform() {
                             <div className="space-y-1">
                               <span className="text-[9px] font-bold bg-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20">📍 Tugas Terdekat (1.2 km)</span>
                               <h5 className="text-xs font-extrabold text-white mt-1.5">Penjemputan: {merchantObj ? merchantObj.name : "Dapur UMKM Mitra"}</h5>
-                              <p className="text-[10px] text-slate-400">Tujuan: {o.shipping_address}</p>
+                              <p className="text-[10px] text-slate-400">Tujuan: {formatAddressText(o.shipping_address)}</p>
                             </div>
                             <button onClick={() => handleAcceptDelivery(o.id)} className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5">
                               <Truck className="h-4 w-4" /> Ambil & Antar Tugas
@@ -2504,7 +2869,12 @@ export default function SecureMultiplatformPlatform() {
                             <div className="space-y-1.5 flex-1">
                               <h5 className="font-bold text-white text-sm">Pengantaran #{o.id}</h5>
                               <p className="text-xs text-slate-400">Dari: <span className="font-bold text-slate-200">{merchantObj ? merchantObj.name : "Dapur UMKM"}</span></p>
-                              <p className="text-xs text-slate-400">Tujuan: <span className="text-indigo-400 font-medium">{o.shipping_address}</span></p>
+                              <p className="text-xs text-slate-400">Tujuan: <span className="text-indigo-400 font-medium">{formatAddressText(o.shipping_address)}</span></p>
+                              
+                              {/* Courier's Dynamic GPS Live Tracking Map */}
+                              {leafletLoaded && (
+                                <div id={`map-${o.id}`} className="h-44 w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800/80 shadow-inner my-2.5 z-10" />
+                              )}
                               
                               {/* LIVE CHAT BUTTON FOR COURIER */}
                               <button
@@ -3482,6 +3852,12 @@ export default function SecureMultiplatformPlatform() {
                   className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none w-full"
                   required
                 />
+                {leafletLoaded && (
+                  <div className="space-y-1 mt-2.5">
+                    <span className="text-[9px] text-slate-500 italic block">Geser pin pada peta untuk menandai lokasi tepat dapur Anda:</span>
+                    <div id="edit-merchant-map" className="h-44 w-full rounded-xl border border-slate-850 bg-slate-950 overflow-hidden relative z-10" />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
