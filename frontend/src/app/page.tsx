@@ -240,6 +240,60 @@ export default function SecureMultiplatformPlatform() {
   const editMerchantMapRef = useRef<any>(null);
   const editMerchantMarkerRef = useRef<any>(null);
 
+  const [isSearchingMap, setIsSearchingMap] = useState(false);
+  const [routesCache, setRoutesCache] = useState<Record<number, [number, number][]>>({});
+
+  const handleSearchAddress = async (type: "checkout" | "reg" | "edit", query: string) => {
+    if (!query) return;
+    setIsSearchingMap(true);
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          const lat = parseFloat(data[0].lat);
+          const lng = parseFloat(data[0].lon);
+          const displayName = data[0].display_name;
+
+          if (type === "checkout") {
+            setCheckoutLatLng([lat, lng]);
+            if (checkoutMapRef.current) {
+              checkoutMapRef.current.setView([lat, lng], 16);
+            }
+            if (checkoutMarkerRef.current) {
+              checkoutMarkerRef.current.setLatLng([lat, lng]);
+            }
+            setShippingAddress(displayName);
+          } else if (type === "reg") {
+            setRegStoreLatLng([lat, lng]);
+            if (regMerchantMapRef.current) {
+              regMerchantMapRef.current.setView([lat, lng], 16);
+            }
+            if (regMerchantMarkerRef.current) {
+              regMerchantMarkerRef.current.setLatLng([lat, lng]);
+            }
+            setRegStoreAddress(displayName);
+          } else if (type === "edit") {
+            setEditStoreLatLng([lat, lng]);
+            if (editMerchantMapRef.current) {
+              editMerchantMapRef.current.setView([lat, lng], 16);
+            }
+            if (editMerchantMarkerRef.current) {
+              editMerchantMarkerRef.current.setLatLng([lat, lng]);
+            }
+            setEditStoreAddress(displayName);
+          }
+        } else {
+          showPremiumAlert("Lokasi tidak ditemukan. Harap masukkan nama jalan, kelurahan, atau kota.", "Info");
+        }
+      }
+    } catch (err) {
+      console.error("OSM Geocoding Error:", err);
+    } finally {
+      setIsSearchingMap(false);
+    }
+  };
+
   const formatAddressText = (addr: string) => {
     if (!addr) return "";
     return addr.includes("||") ? addr.split("||")[0] : addr;
@@ -746,6 +800,47 @@ export default function SecureMultiplatformPlatform() {
     return () => clearInterval(interval);
   }, [token, orders]);
 
+  // Fetch actual street routes from OSRM for active deliveries
+  useEffect(() => {
+    if (typeof window === "undefined" || !leafletLoaded) return;
+    const activeOrders = orders.filter(o => o.status === "dikirim");
+    
+    activeOrders.forEach(async (o) => {
+      if (routesCache[o.id]) return; // Already cached
+      
+      const originLatLng = getOrderOriginCoords(o);
+      let destLatLng: [number, number] = [-6.1996, 106.8601];
+      if (o.shipping_address && o.shipping_address.includes("||")) {
+        const parts = o.shipping_address.split("||");
+        if (parts.length > 1) {
+          const coords = parts[1].split(",");
+          if (coords.length === 2) {
+            const lat = parseFloat(coords[0]);
+            const lng = parseFloat(coords[1]);
+            if (!isNaN(lat) && !isNaN(lng)) {
+              destLatLng = [lat, lng];
+            }
+          }
+        }
+      }
+      
+      try {
+        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${originLatLng[1]},${originLatLng[0]};${destLatLng[1]},${destLatLng[0]}?overview=full&geometries=geojson`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.routes && data.routes.length > 0) {
+            const coords: [number, number][] = data.routes[0].geometry.coordinates.map((c: any) => [c[1], c[0]]);
+            if (coords && coords.length > 0) {
+              setRoutesCache(prev => ({ ...prev, [o.id]: coords }));
+            }
+          }
+        }
+      } catch (err) {
+        console.error("OSRM Routing Error:", err);
+      }
+    });
+  }, [leafletLoaded, orders]);
+
   // DYNAMIC MAP: Inisialisasi Peta Interaktif LeafletJS Dark Cyber Premium
   useEffect(() => {
     if (!leafletLoaded || typeof window === "undefined") return;
@@ -780,8 +875,22 @@ export default function SecureMultiplatformPlatform() {
         }
       }
       
-      const currentLat = originLatLng[0] + (progress * (destLatLng[0] - originLatLng[0]));
-      const currentLng = originLatLng[1] + (progress * (destLatLng[1] - originLatLng[1]));
+      // Check if we have OSRM route coordinates in cache
+      const routePoints = routesCache[o.id];
+      let currentLat = originLatLng[0];
+      let currentLng = originLatLng[1];
+
+      if (routePoints && routePoints.length > 0) {
+        // Interpolate along the actual road path!
+        const totalPoints = routePoints.length;
+        const index = Math.min(Math.floor(progress * totalPoints), totalPoints - 1);
+        currentLat = routePoints[index][0];
+        currentLng = routePoints[index][1];
+      } else {
+        // Fallback to straight line interpolation if OSRM hasn't returned yet
+        currentLat = originLatLng[0] + (progress * (destLatLng[0] - originLatLng[0]));
+        currentLng = originLatLng[1] + (progress * (destLatLng[1] - originLatLng[1]));
+      }
 
       if ((mapContainer as any)._leaflet_map) {
         // Peta sudah diinisialisasi, cukup update posisi marker kurir
@@ -825,12 +934,13 @@ export default function SecureMultiplatformPlatform() {
       });
       L.marker(destLatLng, { icon: destIcon }).addTo(map).bindPopup("Tujuan Pengantaran");
 
-      // Draw Route Line Dotted
-      L.polyline([originLatLng, destLatLng], {
+      // Draw Route Line - Use OSRM road coordinates if available, otherwise straight line
+      const polylinePoints = (routePoints && routePoints.length > 0) ? routePoints : [originLatLng, destLatLng];
+      L.polyline(polylinePoints, {
         color: '#6366F1',
-        weight: 3,
-        opacity: 0.5,
-        dashArray: '5, 5'
+        weight: 4,
+        opacity: 0.75,
+        dashArray: (routePoints && routePoints.length > 0) ? '1' : '5, 5'
       }).addTo(map);
 
       // Icon Moving Courier
@@ -843,7 +953,7 @@ export default function SecureMultiplatformPlatform() {
       const courierMarker = L.marker([currentLat, currentLng], { icon: courierIcon }).addTo(map);
       (mapContainer as any)._courier_marker = courierMarker;
     });
-  }, [leafletLoaded, orders, gpsProgress]);
+  }, [leafletLoaded, orders, gpsProgress, routesCache]);
 
   // 1. useEffect for Checkout Map Picker
   useEffect(() => {
@@ -2103,7 +2213,33 @@ export default function SecureMultiplatformPlatform() {
                           required
                         />
                         {leafletLoaded && (
-                          <div className="space-y-1 mt-2.5">
+                          <div className="space-y-2 mt-2.5">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="Cari lokasi dapur Anda..."
+                                className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none flex-grow"
+                                id="reg-search-input"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    const query = (document.getElementById("reg-search-input") as HTMLInputElement)?.value;
+                                    handleSearchAddress("reg", query);
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const query = (document.getElementById("reg-search-input") as HTMLInputElement)?.value;
+                                  handleSearchAddress("reg", query);
+                                }}
+                                disabled={isSearchingMap}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shrink-0 flex items-center justify-center gap-1"
+                              >
+                                {isSearchingMap ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Cari"}
+                              </button>
+                            </div>
                             <span className="text-[9px] text-slate-500 italic block">Geser pin pada peta untuk menandai lokasi tepat dapur Anda:</span>
                             <div id="reg-merchant-map" className="h-44 w-full rounded-xl border border-slate-850 bg-slate-950 overflow-hidden relative z-10" />
                           </div>
@@ -2626,7 +2762,33 @@ export default function SecureMultiplatformPlatform() {
                                       required
                                     />
                                     {leafletLoaded && (
-                                      <div className="space-y-1 mt-1">
+                                      <div className="space-y-2 mt-2">
+                                        <div className="flex gap-2">
+                                          <input
+                                            type="text"
+                                            placeholder="Cari jalan / kelurahan / kota..."
+                                            className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none flex-grow"
+                                            id="checkout-search-input"
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                const query = (document.getElementById("checkout-search-input") as HTMLInputElement)?.value;
+                                                handleSearchAddress("checkout", query);
+                                              }
+                                            }}
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const query = (document.getElementById("checkout-search-input") as HTMLInputElement)?.value;
+                                              handleSearchAddress("checkout", query);
+                                            }}
+                                            disabled={isSearchingMap}
+                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shrink-0 flex items-center justify-center gap-1"
+                                          >
+                                            {isSearchingMap ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Cari"}
+                                          </button>
+                                        </div>
                                         <span className="text-[9px] text-slate-500 italic block">Geser pin pada peta untuk menandai lokasi tepat pengiriman Anda:</span>
                                         <div id="checkout-map" className="h-44 w-full rounded-xl border border-slate-850 bg-slate-950 overflow-hidden relative z-10" />
                                       </div>
@@ -3853,7 +4015,33 @@ export default function SecureMultiplatformPlatform() {
                   required
                 />
                 {leafletLoaded && (
-                  <div className="space-y-1 mt-2.5">
+                  <div className="space-y-2 mt-2.5">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Cari lokasi dapur Anda..."
+                        className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none flex-grow"
+                        id="edit-search-input"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const query = (document.getElementById("edit-search-input") as HTMLInputElement)?.value;
+                            handleSearchAddress("edit", query);
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const query = (document.getElementById("edit-search-input") as HTMLInputElement)?.value;
+                          handleSearchAddress("edit", query);
+                        }}
+                        disabled={isSearchingMap}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shrink-0 flex items-center justify-center gap-1"
+                      >
+                        {isSearchingMap ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Cari"}
+                      </button>
+                    </div>
                     <span className="text-[9px] text-slate-500 italic block">Geser pin pada peta untuk menandai lokasi tepat dapur Anda:</span>
                     <div id="edit-merchant-map" className="h-44 w-full rounded-xl border border-slate-850 bg-slate-950 overflow-hidden relative z-10" />
                   </div>
