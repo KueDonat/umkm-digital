@@ -900,6 +900,16 @@ export default function SecureMultiplatformPlatform() {
           // Auto-center map ke kurir agar tampak dinamis
           (mapContainer as any)._leaflet_map.panTo([currentLat, currentLng]);
         }
+
+        // Dynamic Route Polyline Update when OSRM API call completes!
+        if ((mapContainer as any)._route_polyline && routePoints && routePoints.length > 0) {
+          (mapContainer as any)._route_polyline.setLatLngs(routePoints);
+          (mapContainer as any)._route_polyline.setStyle({
+            dashArray: '1', // solid line
+            weight: 4,
+            opacity: 0.75
+          });
+        }
         return;
       }
 
@@ -936,12 +946,13 @@ export default function SecureMultiplatformPlatform() {
 
       // Draw Route Line - Use OSRM road coordinates if available, otherwise straight line
       const polylinePoints = (routePoints && routePoints.length > 0) ? routePoints : [originLatLng, destLatLng];
-      L.polyline(polylinePoints, {
+      const routePolyline = L.polyline(polylinePoints, {
         color: '#6366F1',
         weight: 4,
         opacity: 0.75,
         dashArray: (routePoints && routePoints.length > 0) ? '1' : '5, 5'
       }).addTo(map);
+      (mapContainer as any)._route_polyline = routePolyline;
 
       // Icon Moving Courier
       const courierIcon = L.divIcon({
