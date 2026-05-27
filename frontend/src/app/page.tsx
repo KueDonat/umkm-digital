@@ -762,7 +762,7 @@ export default function SecureMultiplatformPlatform() {
         console.error("GSI Main Button Error:", err);
       }
     }
-  }, [token, googleClientId, googleScriptLoaded]);
+  }, [token, googleClientId, googleScriptLoaded, showAuthModal]);
 
   useEffect(() => {
     if (token) {
@@ -2440,16 +2440,16 @@ export default function SecureMultiplatformPlatform() {
                     <div className="flex-grow border-t border-slate-800/80"></div>
                   </div>
 
-                  <div className="w-full flex flex-col items-center gap-2">
+                  <div className="w-full flex flex-col items-center gap-2 [&>div:not(:empty)~#google-fallback-signin-btn]:hidden">
                     {/* Official Google Button container (rendered if client ID configured and working) */}
                     <div id="google-main-signin-btn" className="w-full min-h-[40px] flex justify-center items-center overflow-hidden empty:hidden"></div>
                     
-                    {/* Premium Google Button (Simulated Accounts modal shown unconditionally for 100% demo availability) */}
+                    {/* Fallback Custom Google Button (Directly logs in as demo user instantly with no modal popups) */}
                     <button
+                      id="google-fallback-signin-btn"
                       type="button"
                       onClick={() => {
-                        setGoogleError("");
-                        setShowGoogleModal(true);
+                        handleGoogleLoginSubmitDirect("laestro.google.demo@gmail.com", "Laestro Google Demo");
                       }}
                       className="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-800 rounded-xl text-xs font-bold shadow-md border border-slate-200 transition-all flex items-center justify-center gap-3 active:scale-[0.99]"
                     >
@@ -2462,6 +2462,7 @@ export default function SecureMultiplatformPlatform() {
                       <span>Masuk dengan Google</span>
                     </button>
 
+                    {/* Advanced Simulation link for developer quick testing */}
                     <button
                       type="button"
                       onClick={() => {
