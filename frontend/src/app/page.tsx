@@ -28,6 +28,8 @@ import {
   Clock,
   Check,
   Bell,
+  Star,
+  Shield,
   MessageSquare,
   Camera,
   X,
@@ -222,6 +224,7 @@ export default function SecureMultiplatformPlatform() {
   const [editStoreLoading, setEditStoreLoading] = useState(false);
   const [editStoreError, setEditStoreError] = useState("");
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // States Pembeli / E-Commerce (GoFood)
   const [searchStoreQuery, setSearchStoreQuery] = useState("");
@@ -341,6 +344,18 @@ export default function SecureMultiplatformPlatform() {
       }
     }
     return [-6.2146, 106.8451]; // Default
+  };
+
+  const handleForgotPasswordClick = () => {
+    if (!authEmail) {
+      showPremiumAlert("Silakan masukkan email Anda pada kolom EMAIL USER terlebih dahulu untuk menyetel ulang kata sandi.", "Info");
+      return;
+    }
+    
+    showPremiumAlert(
+      `Tautan instruksi penyetelan ulang kata sandi (reset password) telah sukses dikirim ke email: ${authEmail}. Silakan periksa kotak masuk atau spam email Anda! (Simulasi)`,
+      "Sukses"
+    );
   };
   
   // 1A. STATES BARU FITUR EVALUASI & RATING
@@ -1973,6 +1988,18 @@ export default function SecureMultiplatformPlatform() {
               </div>
             )}
 
+            {!token && (
+              <button
+                onClick={() => {
+                  setIsRegisterMode(false);
+                  setShowAuthModal(true);
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 active:scale-95 animate-fadeIn"
+              >
+                <Lock className="h-3.5 w-3.5" /> Masuk / Daftar
+              </button>
+            )}
+
             {/* Mobile Menu Button (Hamburger) */}
             {token && (
               <button
@@ -2016,164 +2043,457 @@ export default function SecureMultiplatformPlatform() {
 
         {/* ==================== 1. LOGIN & REGISTER CONTAINER ==================== */}
         {!token ? (
-          <div className="max-w-md mx-auto my-10 bg-slate-900/60 p-8 rounded-2xl border border-slate-850 shadow-2xl space-y-6 animate-fadeIn">
-            <div className="text-center space-y-2">
-              <div className="mx-auto w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center border border-indigo-500/20">
-                <Lock className="h-6 w-6" />
+          !showAuthModal ? (
+            <div className="space-y-20 animate-fadeIn max-w-6xl mx-auto py-6">
+              {/* MAGNIFICENT HERO SECTION */}
+              <div className="relative rounded-3xl overflow-hidden border border-slate-850/60 bg-gradient-to-br from-indigo-950/20 via-slate-900/40 to-emerald-950/10 p-8 md:p-16 text-center space-y-8 shadow-2xl">
+                <div className="absolute top-0 left-1/4 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+                <div className="absolute bottom-0 right-1/4 w-[300px] h-[300px] bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 text-[10px] font-extrabold uppercase tracking-widest animate-pulse mx-auto">
+                  <Sparkles className="h-3.5 w-3.5 animate-bounce" /> Platform UMKM Kuliner Premium
+                </div>
+
+                <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight leading-tight max-w-4xl mx-auto bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent">
+                  Transformasikan Bisnis Kuliner Anda Bersama UMKM Digital
+                </h2>
+
+                <p className="text-xs md:text-sm text-slate-400 max-w-2xl mx-auto leading-relaxed font-medium">
+                  Ekosistem terintegrasi yang menghubungkan Dapur UMKM Mandiri, Pembeli Setia, dan Kurir Profesional. Dilengkapi peta live GPS jalan raya, obrolan real-time, kustomisasi PO hidangan, & isolasi akun 100% aman.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
+                  <button
+                    onClick={() => {
+                      setIsRegisterMode(true);
+                      setAuthRole("pembeli");
+                      setShowAuthModal(true);
+                      setAuthError("");
+                      setAuthSuccess("");
+                    }}
+                    className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <UserPlus className="h-4.5 w-4.5" /> Daftar Akun (Gratis)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsRegisterMode(false);
+                      setShowAuthModal(true);
+                      setAuthError("");
+                      setAuthSuccess("");
+                    }}
+                    className="w-full sm:w-auto px-8 py-3.5 bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-850 flex items-center justify-center gap-2 hover:border-slate-700"
+                  >
+                    <Lock className="h-4.5 w-4.5 text-indigo-400" /> Masuk ke Dashboard
+                  </button>
+                </div>
+
+                <div className="pt-8 border-t border-slate-850/60 max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                  <div className="space-y-1">
+                    <span className="block text-lg md:text-xl font-black text-white">15,000+</span>
+                    <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Transaksi Sukses</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="block text-lg md:text-xl font-black text-white">850+</span>
+                    <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Mitra Dapur UMKM</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="block text-lg md:text-xl font-black text-white">Rp 2.4 M+</span>
+                    <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Omzet Terbantu</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="block text-lg md:text-xl font-black text-white">99.8%</span>
+                    <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Tingkat Kepuasan</span>
+                  </div>
+                </div>
               </div>
-              <h2 className="text-lg font-bold text-white">
-                {isRegisterMode ? "Pendaftaran Akun Baru" : "Masuk Sistem UMKM DIGITAL"}
-              </h2>
-              <p className="text-xs text-slate-400">
-                {isRegisterMode ? "Daftarkan akun kuliner Anda" : "Masukkan email & password untuk masuk"}
-              </p>
+
+              {/* FITUR UNGGULAN PREMIUM */}
+              <div className="space-y-8">
+                <div className="text-center space-y-2">
+                  <h3 className="text-xl font-black text-white uppercase tracking-wider">Fitur Unggulan Sistem</h3>
+                  <p className="text-xs text-slate-400 max-w-lg mx-auto">Dirancang khusus untuk menghadirkan pengalaman berbisnis dan bertransaksi kuliner terbaik di Indonesia.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-850 hover:border-indigo-500/30 transition-all space-y-4 hover:-translate-y-1 text-left">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center">
+                      <Store className="h-5 w-5" />
+                    </div>
+                    <h5 className="font-bold text-slate-200 text-xs uppercase tracking-wider">Multi-Merchant Catalog</h5>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Pesan kuliner dari mitra UMKM mana pun dengan aturan Single-Merchant Cart Policy demi mencegah kesalahan pesanan ganda yang membingungkan.
+                    </p>
+                  </div>
+                  <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-850 hover:border-indigo-500/30 transition-all space-y-4 hover:-translate-y-1 text-left">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
+                      <MapPin className="h-5 w-5" />
+                    </div>
+                    <h5 className="font-bold text-slate-200 text-xs uppercase tracking-wider">Peta Live GPS Jalan Raya</h5>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Lacak posisi real-time kurir pengantar di peta LeafletJS dengan rute yang digambar persis menyusuri jalan raya riil berkat integrasi OSRM Engine.
+                    </p>
+                  </div>
+                  <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-850 hover:border-indigo-500/30 transition-all space-y-4 hover:-translate-y-1 text-left">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center">
+                      <Clock className="h-5 w-5" />
+                    </div>
+                    <h5 className="font-bold text-slate-200 text-xs uppercase tracking-wider">Sistem PO & Kustomisasi</h5>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Layanan Pre-Order terjadwal (1-7 hari) serta pemesanan hidangan kustom dengan topping pilihan dan catatan penjual secara praktis.
+                    </p>
+                  </div>
+                  <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-850 hover:border-indigo-500/30 transition-all space-y-4 hover:-translate-y-1 text-left">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center">
+                      <MessageSquare className="h-5 w-5" />
+                    </div>
+                    <h5 className="font-bold text-slate-200 text-xs uppercase tracking-wider">Obrolan Real-Time & POD</h5>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Fitur live chat instan pembeli-kurir dengan enkapsulasi state sesi terisolasi, serta wajib unggah foto POD saat penyerahan pesanan selesai.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* TESTIMONIALS */}
+              <div className="space-y-8">
+                <div className="text-center space-y-2">
+                  <h3 className="text-xl font-black text-white uppercase tracking-wider">Bukti Sosial & Kepuasan Mitra</h3>
+                  <p className="text-xs text-slate-400 max-w-lg mx-auto">Dengarkan kisah sukses langsung dari mereka yang telah merasakan kemudahan ekosistem digital kami.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-850 space-y-4 relative flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-1 text-amber-400">
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                      </div>
+                      <p className="text-[11px] text-slate-350 leading-relaxed italic text-left">
+                        "Semenjak dapur bakso mercon kami bergabung dengan UMKM Digital, pesanan PO melonjak 300%. Sistem foto terkompresi lokal sangat mudah dipahami oleh staf kami yang awam."
+                      </p>
+                    </div>
+                    <div className="pt-4 border-t border-slate-850/60 flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center font-black text-xs">BA</div>
+                      <div className="flex flex-col text-left">
+                        <span className="font-bold text-slate-200 text-xs">Bu Ani Suryani</span>
+                        <span className="text-[9px] text-indigo-400 font-bold uppercase tracking-wider">Pemilik Dapur Bakso Mercon</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-850 space-y-4 relative flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-1 text-amber-400">
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                      </div>
+                      <p className="text-[11px] text-slate-350 leading-relaxed italic text-left">
+                        "Fitur maps jalan raya dan upload bukti pengantaran (POD) di aplikasi ini sangat membantu kerja di lapangan. Pengantaran jadi sangat presisi, aman, dan bebas komplain salah tujuan."
+                      </p>
+                    </div>
+                    <div className="pt-4 border-t border-slate-850/60 flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-black text-xs">RK</div>
+                      <div className="flex flex-col text-left">
+                        <span className="font-bold text-slate-200 text-xs">Rian Kurniawan</span>
+                        <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider">Kurir Pengantar Profesional</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-850 space-y-4 relative flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-1 text-amber-400">
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        <Star className="h-3.5 w-3.5 fill-amber-400" />
+                      </div>
+                      <p className="text-[11px] text-slate-350 leading-relaxed italic text-left">
+                        "Rincian checkout sangat transparan (ongkir flat Rp 10.000, PPN 11%, dan biaya aplikasi 2%). Saya juga sangat terbantu dengan pencarian geocoding peta riil saat pin alamat rumah."
+                      </p>
+                    </div>
+                    <div className="pt-4 border-t border-slate-850/60 flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center font-black text-xs">LN</div>
+                      <div className="flex flex-col text-left">
+                        <span className="font-bold text-slate-200 text-xs">Lina Natalia</span>
+                        <span className="text-[9px] text-indigo-400 font-bold uppercase tracking-wider">Pembeli Setia Sembako & Roti</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* HARGA / LAYANAN (PRICING) */}
+              <div className="space-y-8">
+                <div className="text-center space-y-2">
+                  <h3 className="text-xl font-black text-white uppercase tracking-wider">Skema Biaya Transparan</h3>
+                  <p className="text-xs text-slate-400 max-w-lg mx-auto">Tanpa biaya bulanan tersembunyi. Kami hanya berkembang bersama keberhasilan bisnis kuliner Anda.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto text-left animate-fadeIn">
+                  <div className="bg-slate-900/50 p-8 rounded-3xl border border-slate-850 space-y-6 relative flex flex-col justify-between hover:border-indigo-500/30 transition-all shadow-xl">
+                    <div className="space-y-4">
+                      <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20 uppercase tracking-widest">Penjual / UMKM</span>
+                      <h4 className="text-xl font-black text-white">Mitra Dapur UMKM</h4>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">Kelola produk kuliner, terima pesanan pre-order/instan, kustomisasi menu, dan kelola pendapatan.</p>
+                      
+                      <div className="flex items-baseline gap-1 pt-2">
+                        <span className="text-2xl font-black text-white">Bebas Biaya</span>
+                        <span className="text-slate-500 text-[10px] font-bold">/ Pendaftaran</span>
+                      </div>
+
+                      <ul className="space-y-2.5 text-[11px] text-slate-350 pt-2 border-t border-slate-850">
+                        <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400 shrink-0" /> Komisi aplikasi flat 2% per transaksi sukses</li>
+                        <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400 shrink-0" /> Unggah menu lokal terkompresi instan</li>
+                        <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400 shrink-0" /> Edit menu & profil restoran live</li>
+                        <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400 shrink-0" /> Obrolan langsung dengan kurir & pembeli</li>
+                      </ul>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setIsRegisterMode(true);
+                        setAuthRole("penjual");
+                        setShowAuthModal(true);
+                        setAuthError("");
+                        setAuthSuccess("");
+                      }}
+                      className="w-full mt-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95"
+                    >
+                      Daftar Mitra Sekarang
+                    </button>
+                  </div>
+
+                  <div className="bg-slate-900/50 p-8 rounded-3xl border border-slate-850 space-y-6 relative flex flex-col justify-between hover:border-emerald-500/30 transition-all shadow-xl">
+                    <div className="space-y-4">
+                      <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 uppercase tracking-widest">Konsumen / Pembeli</span>
+                      <h4 className="text-xl font-black text-white">Akun Konsumen</h4>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">Nikmati beragam hidangan lezat langsung dari dapur produsen lokal dengan sistem PO dinamis.</p>
+
+                      <div className="flex items-baseline gap-1 pt-2">
+                        <span className="text-2xl font-black text-white">Rp 10.000</span>
+                        <span className="text-slate-500 text-[10px] font-bold">/ Flat Ongkos Kirim</span>
+                      </div>
+
+                      <ul className="space-y-2.5 text-[11px] text-slate-350 pt-2 border-t border-slate-850">
+                        <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400 shrink-0" /> Peta Live GPS jalan raya dengan Nominatim search</li>
+                        <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400 shrink-0" /> Kustomisasi toppings dan catatan penjual</li>
+                        <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400 shrink-0" /> Rating & review resto terintegrasi</li>
+                        <li className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-400 shrink-0" /> Direct chat terisolasi dengan kurir</li>
+                      </ul>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setIsRegisterMode(true);
+                        setAuthRole("pembeli");
+                        setShowAuthModal(true);
+                        setAuthError("");
+                        setAuthSuccess("");
+                      }}
+                      className="w-full mt-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95"
+                    >
+                      Mulai Berbelanja
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* CALL TO ACTION BOTTOM BANNER */}
+              <div className="bg-gradient-to-r from-indigo-900/30 to-emerald-950/20 p-8 md:p-12 rounded-3xl border border-indigo-500/10 text-center space-y-6 max-w-4xl mx-auto shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl pointer-events-none"></div>
+                <h4 className="text-xl md:text-2xl font-black text-white">Siap Digitalkan Bisnis Kuliner Anda?</h4>
+                <p className="text-xs text-slate-400 max-w-lg mx-auto">Bergabunglah bersama ratusan mitra UMKM Mandiri lainnya dan hadirkan layanan kuliner premium dengan pelacakan jalan raya riil terintegrasi.</p>
+                <div className="flex justify-center pt-2">
+                  <button
+                    onClick={() => {
+                      setIsRegisterMode(true);
+                      setShowAuthModal(true);
+                      setAuthError("");
+                      setAuthSuccess("");
+                    }}
+                    className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg active:scale-95"
+                  >
+                    Daftar Sekarang Juga
+                  </button>
+                </div>
+              </div>
             </div>
-
-            {authError && (
-              <div className="p-3 bg-rose-500/10 text-rose-400 text-xs font-semibold rounded-xl border border-rose-500/20 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                <span>{authError}</span>
-              </div>
-            )}
-
-            {authSuccess && (
-              <div className="p-3 bg-emerald-500/10 text-emerald-400 text-xs font-semibold rounded-xl border border-emerald-500/20">
-                {authSuccess}
-              </div>
-            )}
-
-            <form onSubmit={isRegisterMode ? handleRegister : handleLogin} className="space-y-4">
-              {isRegisterMode && (
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-slate-400">NAMA LENGKAP</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Ani Suryani"
-                    value={authName}
-                    onChange={e => setAuthName(e.target.value)}
-                    className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none w-full"
-                    required
-                  />
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-400">EMAIL USER</label>
-                <input
-                  type="email"
-                  placeholder="ani@email.com"
-                  value={authEmail}
-                  onChange={e => setAuthEmail(e.target.value)}
-                  className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none w-full"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-400">PASSWORD</label>
-                <input
-                  type="password"
-                  placeholder="Min 6 karakter"
-                  value={authPassword}
-                  onChange={e => setAuthPassword(e.target.value)}
-                  className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none w-full"
-                  required
-                />
-              </div>
-
-              {isRegisterMode && (
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-slate-400">PILIH PERAN</label>
-                  <select
-                    value={authRole}
-                    onChange={e => setAuthRole(e.target.value as any)}
-                    className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-3 py-2.5 text-xs text-slate-200 outline-none w-full"
-                  >
-                    <option value="pembeli">Pembeli (Gofood-style catalog)</option>
-                    <option value="penjual">Penjual (Daftar UMKM & Upload Menu)</option>
-                    <option value="kurir">Kurir (Pengantar Go-Food)</option>
-                  </select>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={authLoading}
-                className="w-full py-3 mt-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
-              >
-                {authLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : (isRegisterMode ? "Daftar Akun" : "Masuk Sistem")}
-              </button>
-
-              <div className="flex items-center my-3">
-                <div className="flex-grow border-t border-slate-800/80"></div>
-                <span className="mx-3 text-[9px] font-bold text-slate-500 uppercase tracking-wider">ATAU</span>
-                <div className="flex-grow border-t border-slate-800/80"></div>
-              </div>
-
-              <div className="w-full flex flex-col items-center gap-2">
-                {/* Official Google Button container (rendered on localhost if registered) */}
-                {!isRawIp && (
-                  <div id="google-main-signin-btn" className="w-full min-h-[40px] flex justify-center items-center"></div>
-                )}
-                
-                {/* Custom Google Fallback Button shown on Local IPs / Mobile */}
-                {(isRawIp || isMobileFlow) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGoogleError("");
-                      setShowGoogleModal(true);
-                    }}
-                    className="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-800 rounded-xl text-xs font-bold shadow-md border border-slate-200 transition-all flex items-center justify-center gap-3 active:scale-[0.99]"
-                  >
-                    <svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M21.35,11.1H12v2.7h5.38C16.88,16.22,14.65,18,12,18c-3.31,0-6-2.69-6-6s2.69-6,6-6c1.66,0,3.14,0.67,4.24,1.76l2.1-2.1C16.51,3.84,14.42,3,12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9c4.97,0,9-4.03,9-9C21,11.75,20.88,11.37,21.35,11.1z" fill="#4285F4" />
-                      <path d="M12,21c4.97,0,9-4.03,9-9c0-0.65-0.12-1.25-0.35-1.9H12v2.7h5.38c-0.5,2.42-2.73,4.2-5.38,4.2c-3.31,0-6-2.69-6-6c0-0.38,0.04-0.75,0.11-1.12l-2.12-1.63C3.31,9.08,3,10.51,3,12C3,16.97,7.03,21,12,21z" fill="#34A853" />
-                      <path d="M6.11,9.88C6.04,10.25,6,10.62,6,11c0,0.38,0.04,0.75,0.11,1.12l2.12,1.63C8.04,13.38,8,13.01,8,12.63c0-0.38,0.04-0.75,0.11-1.12L6.11,9.88z" fill="#FBBC05" />
-                      <path d="M12,6c1.66,0,3.14,0.67,4.24,1.76l2.1-2.1C16.51,3.84,14.42,3,12,3c-4.97,0-9,4.03-9,9c0,1.49,0.31,2.92,0.86,4.23l2.12-1.63C6.04,13.38,6,13.01,6,12.63C6,7.69,8.69,6,12,6z" fill="#EA4335" />
-                    </svg>
-                    <span>Masuk dengan Google</span>
-                  </button>
-                )}
-                
-                {isMobileFlow && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.location.href = `umkm-app://login-success?token=simulated_jwt_token&name=${encodeURIComponent("lip")}&email=laestrodong@gmail.com&role=${googleRole}`;
-                    }}
-                    className="w-full py-2 bg-indigo-650 hover:bg-indigo-600 text-white rounded-xl text-[11px] font-bold shadow-sm transition-all active:scale-[0.98] border border-indigo-500/30"
-                  >
-                    Masuk Cepat Google (Simulasi 1-Ketuk) &rarr;
-                  </button>
-                )}
-
+          ) : (
+            /* Floating Auth Modal Overlay */
+            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="max-w-md w-full bg-slate-900/90 p-8 rounded-2xl border border-slate-800 shadow-2xl space-y-6 relative animate-fadeIn">
                 <button
-                  type="button"
-                  onClick={() => {
-                    setGoogleError("");
-                    setShowGoogleModal(true);
-                  }}
-                  className="text-[10px] text-slate-400 hover:text-indigo-400 hover:underline transition-all mt-1"
+                  onClick={() => setShowAuthModal(false)}
+                  className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-950 border border-slate-850 hover:border-indigo-500 text-slate-400 hover:text-indigo-400 transition-all active:scale-95"
+                  title="Tutup"
                 >
-                  Opsi Lanjut: Atur Client ID / Simulasi Akun Peran Lainnya &rarr;
+                  <X className="h-4.5 w-4.5" />
                 </button>
-              </div>
-            </form>
+                <div className="text-center space-y-2">
+                  <div className="mx-auto w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-xl flex items-center justify-center border border-indigo-500/20">
+                    <Lock className="h-6 w-6" />
+                  </div>
+                  <h2 className="text-lg font-bold text-white">
+                    {isRegisterMode ? "Pendaftaran Akun Baru" : "Masuk Sistem UMKM DIGITAL"}
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    {isRegisterMode ? "Daftarkan akun kuliner Anda" : "Masukkan email & password untuk masuk"}
+                  </p>
+                </div>
 
-            <div className="text-center">
-              <button
-                onClick={() => {
-                  setIsRegisterMode(!isRegisterMode);
-                  setAuthError("");
-                  setAuthSuccess("");
-                }}
-                className="text-xs text-slate-400 hover:text-indigo-400 transition-colors underline"
-              >
-                {isRegisterMode ? "Sudah punya akun? Masuk disini" : "Belum punya akun? Daftar disini"}
-              </button>
+                {authError && (
+                  <div className="p-3 bg-rose-500/10 text-rose-400 text-xs font-semibold rounded-xl border border-rose-500/20 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>{authError}</span>
+                  </div>
+                )}
+
+                {authSuccess && (
+                  <div className="p-3 bg-emerald-500/10 text-emerald-400 text-xs font-semibold rounded-xl border border-emerald-500/20">
+                    {authSuccess}
+                  </div>
+                )}
+
+                <form onSubmit={isRegisterMode ? handleRegister : handleLogin} className="space-y-4">
+                  {isRegisterMode && (
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-slate-400">NAMA LENGKAP</label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: Ani Suryani"
+                        value={authName}
+                        onChange={e => setAuthName(e.target.value)}
+                        className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none w-full"
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-slate-400">EMAIL USER</label>
+                    <input
+                      type="email"
+                      placeholder="ani@email.com"
+                      value={authEmail}
+                      onChange={e => setAuthEmail(e.target.value)}
+                      className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none w-full"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <label className="block text-[10px] font-bold text-slate-400">PASSWORD</label>
+                      {!isRegisterMode && (
+                        <button
+                          type="button"
+                          onClick={handleForgotPasswordClick}
+                          className="text-[9px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+                        >
+                          Lupa Password?
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="Min 6 karakter"
+                      value={authPassword}
+                      onChange={e => setAuthPassword(e.target.value)}
+                      className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none w-full"
+                      required
+                    />
+                  </div>
+
+                  {isRegisterMode && (
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-bold text-slate-400">PILIH PERAN</label>
+                      <select
+                        value={authRole}
+                        onChange={e => setAuthRole(e.target.value as any)}
+                        className="bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-3 py-2.5 text-xs text-slate-200 outline-none w-full cursor-pointer"
+                      >
+                        <option value="pembeli">Pembeli</option>
+                        <option value="penjual">Penjual</option>
+                        <option value="kurir">Kurir</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={authLoading}
+                    className="w-full py-3 mt-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                  >
+                    {authLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : (isRegisterMode ? "Daftar Akun" : "Masuk Sistem")}
+                  </button>
+
+                  <div className="flex items-center my-3">
+                    <div className="flex-grow border-t border-slate-800/80"></div>
+                    <span className="mx-3 text-[9px] font-bold text-slate-500 uppercase tracking-wider">ATAU</span>
+                    <div className="flex-grow border-t border-slate-800/80"></div>
+                  </div>
+
+                  <div className="w-full flex flex-col items-center gap-2">
+                    {/* Official Google Button container */}
+                    {!isRawIp && (
+                      <div id="google-main-signin-btn" className="w-full min-h-[40px] flex justify-center items-center overflow-hidden"></div>
+                    )}
+                    
+                    {/* Custom Google Fallback Button shown on Local IPs / Mobile */}
+                    {(isRawIp || isMobileFlow) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGoogleError("");
+                          setShowGoogleModal(true);
+                        }}
+                        className="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-800 rounded-xl text-xs font-bold shadow-md border border-slate-200 transition-all flex items-center justify-center gap-3 active:scale-[0.99]"
+                      >
+                        <svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M21.35,11.1H12v2.7h5.38C16.88,16.22,14.65,18,12,18c-3.31,0-6-2.69-6-6s2.69-6,6-6c1.66,0,3.14,0.67,4.24,1.76l2.1-2.1C16.51,3.84,14.42,3,12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9c4.97,0,9-4.03,9-9C21,11.75,20.88,11.37,21.35,11.1z" fill="#4285F4" />
+                          <path d="M12,21c4.97,0,9-4.03,9-9c0-0.65-0.12-1.25-0.35-1.9H12v2.7h5.38c-0.5,2.42-2.73,4.2-5.38,4.2c-3.31,0-6-2.69-6-6c0-0.38,0.04-0.75,0.11-1.12l-2.12-1.63C3.31,9.08,3,10.51,3,12C3,16.97,7.03,21,12,21z" fill="#34A853" />
+                          <path d="M6.11,9.88C6.04,10.25,6,10.62,6,11c0,0.38,0.04,0.75,0.11,1.12l2.12,1.63C8.04,13.38,8,13.01,8,12.63c0-0.38,0.04-0.75,0.11-1.12L6.11,9.88z" fill="#FBBC05" />
+                          <path d="M12,6c1.66,0,3.14,0.67,4.24,1.76l2.1-2.1C16.51,3.84,14.42,3,12,3c-4.97,0-9,4.03-9,9c0,1.49,0.31,2.92,0.86,4.23l2.12-1.63C6.04,13.38,6,13.01,6,12.63C6,7.69,8.69,6,12,6z" fill="#EA4335" />
+                        </svg>
+                        <span>Masuk dengan Google</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGoogleError("");
+                        setShowGoogleModal(true);
+                      }}
+                      className="text-[10px] text-slate-400 hover:text-indigo-400 hover:underline transition-all mt-1"
+                    >
+                      Opsi Lanjut: Atur Client ID / Simulasi Akun Peran Lainnya &rarr;
+                    </button>
+                  </div>
+                </form>
+
+                <div className="text-center">
+                  <button
+                    onClick={() => {
+                      setIsRegisterMode(!isRegisterMode);
+                      setAuthError("");
+                      setAuthSuccess("");
+                    }}
+                    className="text-xs text-slate-400 hover:text-indigo-400 transition-colors underline"
+                  >
+                    {isRegisterMode ? "Sudah punya akun? Masuk disini" : "Belum punya akun? Daftar disini"}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          )
         ) : (
           // ==================== 2. SCREEN TERAUTENTIKASI ====================
           <div className="space-y-8 animate-fadeIn">
@@ -3336,9 +3656,9 @@ export default function SecureMultiplatformPlatform() {
                 onChange={e => setGoogleRole(e.target.value as any)}
                 className="bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none w-full shadow-sm"
               >
-                <option value="pembeli">Pembeli (Daftar Menu & Keranjang Belanja)</option>
-                <option value="penjual">Penjual (Daftar Dapur UMKM & Upload Menu)</option>
-                <option value="kurir">Kurir (Ambil Tugas & mandatory Photo POD)</option>
+                <option value="pembeli">Pembeli</option>
+                <option value="penjual">Penjual</option>
+                <option value="kurir">Kurir</option>
               </select>
             </div>
 
