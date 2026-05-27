@@ -2441,30 +2441,26 @@ export default function SecureMultiplatformPlatform() {
                   </div>
 
                   <div className="w-full flex flex-col items-center gap-2">
-                    {/* Official Google Button container */}
-                    {!isRawIp && (
-                      <div id="google-main-signin-btn" className="w-full min-h-[40px] flex justify-center items-center overflow-hidden"></div>
-                    )}
+                    {/* Official Google Button container (rendered if client ID configured and working) */}
+                    <div id="google-main-signin-btn" className="w-full min-h-[40px] flex justify-center items-center overflow-hidden empty:hidden"></div>
                     
-                    {/* Custom Google Fallback Button shown on Local IPs / Mobile */}
-                    {(isRawIp || isMobileFlow) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setGoogleError("");
-                          setShowGoogleModal(true);
-                        }}
-                        className="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-800 rounded-xl text-xs font-bold shadow-md border border-slate-200 transition-all flex items-center justify-center gap-3 active:scale-[0.99]"
-                      >
-                        <svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M21.35,11.1H12v2.7h5.38C16.88,16.22,14.65,18,12,18c-3.31,0-6-2.69-6-6s2.69-6,6-6c1.66,0,3.14,0.67,4.24,1.76l2.1-2.1C16.51,3.84,14.42,3,12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9c4.97,0,9-4.03,9-9C21,11.75,20.88,11.37,21.35,11.1z" fill="#4285F4" />
-                          <path d="M12,21c4.97,0,9-4.03,9-9c0-0.65-0.12-1.25-0.35-1.9H12v2.7h5.38c-0.5,2.42-2.73,4.2-5.38,4.2c-3.31,0-6-2.69-6-6c0-0.38,0.04-0.75,0.11-1.12l-2.12-1.63C3.31,9.08,3,10.51,3,12C3,16.97,7.03,21,12,21z" fill="#34A853" />
-                          <path d="M6.11,9.88C6.04,10.25,6,10.62,6,11c0,0.38,0.04,0.75,0.11,1.12l2.12,1.63C8.04,13.38,8,13.01,8,12.63c0-0.38,0.04-0.75,0.11-1.12L6.11,9.88z" fill="#FBBC05" />
-                          <path d="M12,6c1.66,0,3.14,0.67,4.24,1.76l2.1-2.1C16.51,3.84,14.42,3,12,3c-4.97,0-9,4.03-9,9c0,1.49,0.31,2.92,0.86,4.23l2.12-1.63C6.04,13.38,6,13.01,6,12.63C6,7.69,8.69,6,12,6z" fill="#EA4335" />
-                        </svg>
-                        <span>Masuk dengan Google</span>
-                      </button>
-                    )}
+                    {/* Premium Google Button (Simulated Accounts modal shown unconditionally for 100% demo availability) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGoogleError("");
+                        setShowGoogleModal(true);
+                      }}
+                      className="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-800 rounded-xl text-xs font-bold shadow-md border border-slate-200 transition-all flex items-center justify-center gap-3 active:scale-[0.99]"
+                    >
+                      <svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21.35,11.1H12v2.7h5.38C16.88,16.22,14.65,18,12,18c-3.31,0-6-2.69-6-6s2.69-6,6-6c1.66,0,3.14,0.67,4.24,1.76l2.1-2.1C16.51,3.84,14.42,3,12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9c4.97,0,9-4.03,9-9C21,11.75,20.88,11.37,21.35,11.1z" fill="#4285F4" />
+                        <path d="M12,21c4.97,0,9-4.03,9-9c0-0.65-0.12-1.25-0.35-1.9H12v2.7h5.38c-0.5,2.42-2.73,4.2-5.38,4.2c-3.31,0-6-2.69-6-6c0-0.38,0.04-0.75,0.11-1.12l-2.12-1.63C3.31,9.08,3,10.51,3,12C3,16.97,7.03,21,12,21z" fill="#34A853" />
+                        <path d="M6.11,9.88C6.04,10.25,6,10.62,6,11c0,0.38,0.04,0.75,0.11,1.12l2.12,1.63C8.04,13.38,8,13.01,8,12.63c0-0.38,0.04-0.75,0.11-1.12L6.11,9.88z" fill="#FBBC05" />
+                        <path d="M12,6c1.66,0,3.14,0.67,4.24,1.76l2.1-2.1C16.51,3.84,14.42,3,12,3c-4.97,0-9,4.03-9,9c0,1.49,0.31,2.92,0.86,4.23l2.12-1.63C6.04,13.38,6,13.01,6,12.63C6,7.69,8.69,6,12,6z" fill="#EA4335" />
+                      </svg>
+                      <span>Masuk dengan Google</span>
+                    </button>
 
                     <button
                       type="button"
