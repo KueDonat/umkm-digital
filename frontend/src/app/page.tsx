@@ -39,6 +39,9 @@ import {
   Upload,
   Settings,
   Menu,
+  QrCode,
+  Copy,
+  Repeat,
 } from "lucide-react";
 
 // Tipe Data
@@ -302,6 +305,27 @@ export default function SecureMultiplatformPlatform() {
     return addr.includes("||") ? addr.split("||")[0] : addr;
   };
 
+  const parseSubscriptionInfo = (notes?: string) => {
+    if (!notes) return null;
+    // Format 1: [Langganan PO Berulang - Freq - Setiap Hari Day]
+    const match1 = notes.match(/\[Langganan PO Berulang - ([^-]+) - Setiap Hari ([^\]]+)\]/);
+    if (match1) {
+      return {
+        frequency: match1[1].trim(),
+        day: match1[2].trim()
+      };
+    }
+    // Format 2: [Langganan PO Berulang - Setiap Hari Day]
+    const match2 = notes.match(/\[Langganan PO Berulang - Setiap Hari ([^\]]+)\]/);
+    if (match2) {
+      return {
+        frequency: "Mingguan",
+        day: match2[1].trim()
+      };
+    }
+    return null;
+  };
+
   const getOrderOriginCoords = (o: any): [number, number] => {
     let merchantAddress = "";
     if (user?.role === "penjual" && myMerchant) {
@@ -385,6 +409,21 @@ export default function SecureMultiplatformPlatform() {
   const [ratingBuyerVal, setRatingBuyerVal] = useState(5);
   const [ratingBuyerSubmitting, setRatingBuyerSubmitting] = useState(false);
 
+  // ==================== NEW STATES FOR PREMIUM REVIEW FEATURES ====================
+  const [initialReferral, setInitialReferral] = useState("");
+  const [authReferralCode, setAuthReferralCode] = useState("");
+  const [scannedMerchantId, setScannedMerchantId] = useState<string | null>(null);
+
+  const [onboardMenu, setOnboardMenu] = useState("Bakso Lava Mercon");
+  const [onboardMenuPrice, setOnboardMenuPrice] = useState(25000);
+  const [onboardTopping, setOnboardTopping] = useState("Polos");
+  const [onboardSchedule, setOnboardSchedule] = useState(2);
+  const [onboardFrequency, setOnboardFrequency] = useState("sekali");
+  const [onboardDay, setOnboardDay] = useState("Selasa");
+
+  const [subFrequency, setSubFrequency] = useState<"sekali" | "mingguan" | "dua_mingguan">("sekali");
+  const [subDay, setSubDay] = useState("Selasa");
+
   // 1B. UTILITY: PREMIUM PHOTO GENERATORS
   const getProductPhoto = (name: string): string => {
     const term = name.toLowerCase();
@@ -456,18 +495,27 @@ export default function SecureMultiplatformPlatform() {
     setOrderQty(1);
     setSelectedTopping("Polos");
     setSellerNote("");
+    setSubFrequency("sekali");
+    setSubDay("Selasa");
   };
 
   const handleConfirmAddToCart = () => {
     if (!selectedProductForOrder) return;
     
+    let finalNote = sellerNote;
+    if (subFrequency !== "sekali") {
+      const freqLabel = subFrequency === "mingguan" ? "Mingguan" : "Dua Mingguan";
+      const subString = `[Langganan PO Berulang - ${freqLabel} - Setiap Hari ${subDay}]`;
+      finalNote = finalNote ? `${finalNote} ${subString}` : subString;
+    }
+
     // Check Single Merchant Cart Policy
     if (cart.length > 0 && selectedProductForOrder.merchant_id !== cart[0].product.merchant_id) {
       showPremiumConfirm(
         "Keranjang belanja Anda berisi makanan dari dapur toko lain. Kosongkan keranjang untuk memesan dari dapur toko ini?",
         () => {
           // Clear cart and add new item
-          setCart([{ product: selectedProductForOrder, qty: orderQty, toppings: selectedTopping, notes: sellerNote }]);
+          setCart([{ product: selectedProductForOrder, qty: orderQty, toppings: selectedTopping, notes: finalNote }]);
           setSelectedProductForOrder(null);
           showPremiumAlert("Keranjang disetel ulang untuk toko baru!", "Sukses");
         },
@@ -480,7 +528,7 @@ export default function SecureMultiplatformPlatform() {
     const existingIndex = cart.findIndex(item => 
       item.product.id === selectedProductForOrder.id && 
       item.toppings === selectedTopping && 
-      item.notes === sellerNote
+      item.notes === finalNote
     );
 
     if (existingIndex > -1) {
@@ -488,7 +536,7 @@ export default function SecureMultiplatformPlatform() {
       updatedCart[existingIndex].qty += orderQty;
       setCart(updatedCart);
     } else {
-      setCart([...cart, { product: selectedProductForOrder, qty: orderQty, toppings: selectedTopping, notes: sellerNote }]);
+      setCart([...cart, { product: selectedProductForOrder, qty: orderQty, toppings: selectedTopping, notes: finalNote }]);
     }
     
     setSelectedProductForOrder(null);
@@ -615,6 +663,26 @@ export default function SecureMultiplatformPlatform() {
     if (savedToken && savedUser) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
+    }
+
+    // Check URL query parameters (referral ref and scanned merchant QR code)
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get("ref");
+      const merchant = params.get("merchant");
+      if (ref) {
+        setInitialReferral(ref);
+        setAuthReferralCode(ref);
+        setTimeout(() => {
+          showPremiumAlert(`Tautan referral terdeteksi! Anda diajak bergabung oleh Mitra: ${ref}. Kode referral akan otomatis digunakan saat pendaftaran.`, "Info");
+        }, 800);
+      }
+      if (merchant) {
+        setScannedMerchantId(merchant);
+        setTimeout(() => {
+          showPremiumAlert(`QR Code Dapur Mitra terdeteksi! Dapur ID #${merchant} akan langsung dimuat secara otomatis setelah Anda masuk ke sistem.`, "Info");
+        }, 800);
+      }
     }
 
     // LOAD LEAFLET DYNAMICALLY FOR THE PREMIUM MAP
@@ -1425,6 +1493,16 @@ export default function SecureMultiplatformPlatform() {
       if (res.ok) {
         const data = await res.json();
         setMerchants(data || []);
+        
+        // Auto-select merchant from scanned QR Code if present
+        if (scannedMerchantId && data && data.length > 0) {
+          const matched = data.find((m: any) => String(m.id) === String(scannedMerchantId));
+          if (matched) {
+            fetchMerchantProducts(matched);
+            setScannedMerchantId(null); // Reset after redirecting to avoid repeat alerts
+            showPremiumAlert(`Sukses memindai QR Code! Anda diarahkan langsung ke halaman: ${matched.name}.`, "Sukses");
+          }
+        }
       }
     } catch (e) {
       console.error(e);
@@ -2155,6 +2233,252 @@ export default function SecureMultiplatformPlatform() {
                 </div>
               </div>
 
+              {/* INTERACTIVE ONBOARDING WIDGET ("COBA FITUR PO") */}
+              <div className="bg-slate-900/40 p-8 rounded-3xl border border-slate-850 space-y-8 max-w-5xl mx-auto shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
+                <div className="text-center space-y-2">
+                  <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20 uppercase tracking-widest">Demo Interaktif Tanpa Login</span>
+                  <h3 className="text-xl font-black text-white uppercase tracking-wider">Coba Fitur Pre-Order (PO) Instan</h3>
+                  <p className="text-xs text-slate-400 max-w-lg mx-auto">Rasakan kemudahan mengonfigurasi hidangan kustom dan jadwal PO otomatis. Lihat rincian biaya transparan dalam hitungan detik!</p>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+                  {/* Left Column: Configurator (5 cols) */}
+                  <div className="lg:col-span-5 bg-slate-950/60 p-6 rounded-2xl border border-slate-850/80 space-y-5 text-left">
+                    {/* 1. Select Menu */}
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">1. Pilih Menu Demo:</label>
+                      <div className="space-y-2">
+                        {[
+                          { name: "Bakso Lava Mercon", price: 25000, desc: "Bakso ukuran jumbo isi cabe rawit pedas lava." },
+                          { name: "Martabak Manis Pandan", price: 30000, desc: "Martabak tebal pandan topping keju & cokelat melimpah." },
+                          { name: "Ayam Geprek Cabe Bawang", price: 20000, desc: "Ayam krispi digeprek sambal bawang pedas nendang." }
+                        ].map((m) => (
+                          <div 
+                            key={m.name}
+                            onClick={() => {
+                              setOnboardMenu(m.name);
+                              setOnboardMenuPrice(m.price);
+                            }}
+                            className={`p-3 rounded-xl border cursor-pointer transition-all ${onboardMenu === m.name ? "bg-indigo-500/10 border-indigo-500 text-white" : "bg-slate-900/30 border-slate-850 text-slate-450 hover:bg-slate-900/50"}`}
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs font-bold">{m.name}</span>
+                              <span className="text-xs font-extrabold text-indigo-400">Rp {m.price.toLocaleString("id-ID")}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-1 line-clamp-1">{m.desc}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 2. Select Topping */}
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">2. Kustomisasi Topping:</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { name: "Polos", add: 0 },
+                          { name: "Ekstra Keju", add: 5000 },
+                          { name: "Ekstra Cokelat", add: 4000 },
+                          { name: "Saus Pedas Lava", add: 3000 }
+                        ].map((t) => (
+                          <div 
+                            key={t.name}
+                            onClick={() => setOnboardTopping(t.name)}
+                            className={`p-2 rounded-xl border text-center cursor-pointer transition-all ${onboardTopping === t.name ? "bg-indigo-500/10 border-indigo-500 text-white font-bold" : "bg-slate-900/30 border-slate-850 text-slate-400 hover:bg-slate-900/50"}`}
+                          >
+                            <span className="text-[11px] block">{t.name}</span>
+                            <span className="text-[9px] text-slate-500 block mt-0.5">{t.add === 0 ? "Gratis" : `+Rp ${t.add.toLocaleString("id-ID")}`}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 3. Schedule */}
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">3. Waktu Pre-Order (PO):</label>
+                      <input 
+                        type="range" 
+                        min="1" 
+                        max="7" 
+                        value={onboardSchedule} 
+                        onChange={(e) => setOnboardSchedule(parseInt(e.target.value))}
+                        className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                      />
+                      <div className="flex justify-between text-[9px] text-slate-500 font-bold">
+                        <span>Besok ({onboardSchedule === 1 ? "Aktif" : "1 Hari"})</span>
+                        <span>Lusa (2 Hari)</span>
+                        <span>7 Hari Lagi</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 text-center font-medium bg-slate-900/50 py-1.5 rounded-lg border border-slate-850/80">
+                        Pesanan akan diantar: <span className="font-bold text-indigo-400">{onboardSchedule} Hari Lagi</span> dari sekarang.
+                      </p>
+                    </div>
+
+                    {/* 4. Subscription Repeat Option */}
+                    <div className="space-y-2 pt-1 border-t border-slate-850/60">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">4. Pre-Order Berulang (Langganan):</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button 
+                          onClick={() => setOnboardFrequency("sekali")}
+                          className={`py-2 rounded-xl border text-[11px] font-bold transition-all ${onboardFrequency === "sekali" ? "bg-indigo-600 border-indigo-500 text-white" : "bg-slate-900/30 border-slate-850 text-slate-400"}`}
+                        >
+                          Pesan Sekali
+                        </button>
+                        <button 
+                          onClick={() => setOnboardFrequency("mingguan")}
+                          className={`py-2 rounded-xl border text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${onboardFrequency === "mingguan" ? "bg-emerald-600 border-emerald-500 text-white" : "bg-slate-900/30 border-slate-850 text-slate-400"}`}
+                        >
+                          <Repeat className="h-3 w-3 animate-spin-slow" /> Langganan PO
+                        </button>
+                      </div>
+                      {onboardFrequency === "mingguan" && (
+                        <div className="space-y-1 animate-fadeIn">
+                          <span className="block text-[9px] text-slate-500 font-bold uppercase">Kirim Otomatis Setiap Hari:</span>
+                          <select 
+                            value={onboardDay} 
+                            onChange={(e) => setOnboardDay(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-850 focus:border-indigo-500 rounded-xl px-2 py-1.5 text-[11px] text-slate-350 outline-none cursor-pointer"
+                          >
+                            {["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"].map((day) => (
+                              <option key={day} value={day}>{day}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Receipt & Simulation (7 cols) */}
+                  <div className="lg:col-span-7 bg-slate-950/40 p-6 rounded-2xl border border-slate-850/80 flex flex-col justify-between space-y-6 text-left relative">
+                    {/* Background faint glow */}
+                    <div className="absolute inset-0 bg-indigo-500/2 rounded-2xl filter blur-xl pointer-events-none"></div>
+
+                    <div className="space-y-4 relative">
+                      <div className="flex justify-between items-center border-b border-slate-850 pb-3">
+                        <h4 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                          <ShoppingBag className="h-4 w-4 text-indigo-400" /> Rincian Simulasi Tagihan
+                        </h4>
+                        <span className="text-[9px] font-bold text-slate-500 tracking-wider">#SIMULASI-ORDER</span>
+                      </div>
+
+                      {/* Bill Calculation Details */}
+                      <div className="space-y-2.5 text-xs">
+                        <div className="flex justify-between text-slate-400 font-medium">
+                          <span>{onboardMenu} (Harga Dasar)</span>
+                          <span className="text-white font-bold">Rp {onboardMenuPrice.toLocaleString("id-ID")}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-400 font-medium">
+                          <span>Topping ({onboardTopping})</span>
+                          <span className="text-white font-bold">
+                            Rp {(
+                              onboardTopping === "Ekstra Keju" ? 5000 : 
+                              onboardTopping === "Ekstra Cokelat" ? 4000 : 
+                              onboardTopping === "Saus Pedas Lava" ? 3000 : 0
+                            ).toLocaleString("id-ID")}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-slate-400 font-medium">
+                          <span>Ongkos Kirim Flat</span>
+                          <span className="text-white font-bold">Rp 10.000</span>
+                        </div>
+                        <div className="flex justify-between text-slate-550 font-medium border-t border-slate-900 pt-2">
+                          <span>PPN Flat (11%)</span>
+                          <span>
+                            Rp {Math.round((onboardMenuPrice + (
+                              onboardTopping === "Ekstra Keju" ? 5000 : 
+                              onboardTopping === "Ekstra Cokelat" ? 4000 : 
+                              onboardTopping === "Saus Pedas Lava" ? 3000 : 0
+                            ) + 10000) * 0.11).toLocaleString("id-ID")}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-slate-555 font-medium">
+                          <span>Biaya Aplikasi (2%)</span>
+                          <span>
+                            Rp {Math.round((onboardMenuPrice + (
+                              onboardTopping === "Ekstra Keju" ? 5000 : 
+                              onboardTopping === "Ekstra Cokelat" ? 4000 : 
+                              onboardTopping === "Saus Pedas Lava" ? 3000 : 0
+                            ) + 10000) * 0.02).toLocaleString("id-ID")}
+                          </span>
+                        </div>
+
+                        {/* Grand Total */}
+                        <div className="flex justify-between text-white font-black text-sm border-t-2 border-dashed border-slate-850 pt-3">
+                          <span className="uppercase tracking-wider">Total Estimasi</span>
+                          <span className="text-indigo-400 text-base">
+                            Rp {(
+                              (onboardMenuPrice + (
+                                onboardTopping === "Ekstra Keju" ? 5000 : 
+                                onboardTopping === "Ekstra Cokelat" ? 4000 : 
+                                onboardTopping === "Saus Pedas Lava" ? 3000 : 0
+                              ) + 10000) + 
+                              Math.round((onboardMenuPrice + (
+                                onboardTopping === "Ekstra Keju" ? 5000 : 
+                                onboardTopping === "Ekstra Cokelat" ? 4000 : 
+                                onboardTopping === "Saus Pedas Lava" ? 3000 : 0
+                              ) + 10000) * 0.11) + 
+                              Math.round((onboardMenuPrice + (
+                                onboardTopping === "Ekstra Keju" ? 5000 : 
+                                onboardTopping === "Ekstra Cokelat" ? 4000 : 
+                                onboardTopping === "Saus Pedas Lava" ? 3000 : 0
+                              ) + 10000) * 0.02)
+                            ).toLocaleString("id-ID")}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Interactive Visual Timeline */}
+                      <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-850 space-y-3 mt-4">
+                        <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest">Alur Simulasi Pengantaran:</span>
+                        <div className="relative border-l border-slate-800 pl-4 ml-1.5 space-y-3 text-[10px]">
+                          {/* Timeline Item 1 */}
+                          <div className="relative">
+                            <span className="absolute -left-[20.5px] top-0.5 w-3 h-3 rounded-full bg-indigo-500 border-2 border-slate-950 flex items-center justify-center"></span>
+                            <span className="block font-bold text-white uppercase tracking-wider">Hari 0 (Hari Ini)</span>
+                            <span className="text-slate-450">Pemesanan simulasi diterima. Sistem menahan dana dengan aman (Secure Escrow).</span>
+                          </div>
+                          {/* Timeline Item 2 */}
+                          <div className="relative">
+                            <span className="absolute -left-[20.5px] top-0.5 w-3 h-3 rounded-full bg-slate-800 border border-slate-700"></span>
+                            <span className="block font-bold text-slate-400 uppercase tracking-wider">Hari {onboardSchedule - 1} ({onboardSchedule === 1 ? "Malam Ini" : `${onboardSchedule - 1} Hari Lagi`})</span>
+                            <span className="text-slate-500">Dapur UMKM menyiapkan bahan hidangan kustom dengan topping pilihan Anda.</span>
+                          </div>
+                          {/* Timeline Item 3 */}
+                          <div className="relative">
+                            <span className="absolute -left-[20.5px] top-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500/20 text-emerald-400 border-2 border-emerald-500 flex items-center justify-center font-bold text-[8px]">★</span>
+                            <span className="block font-bold text-emerald-400 uppercase tracking-wider">Hari {onboardSchedule} (Antaran)</span>
+                            <span className="text-slate-400">
+                              Kurir Teladan kami mengambil hidangan hangat dari dapur dan mengantar menyusuri rute jalan raya riil langsung ke pintu Anda.
+                              {onboardFrequency === "mingguan" && (
+                                <span className="block text-emerald-400/90 font-bold mt-1 bg-emerald-500/5 px-2 py-0.5 border border-emerald-500/10 rounded w-fit text-[9px] uppercase tracking-wider">
+                                  🔁 Diulang otomatis setiap hari {onboardDay}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setIsRegisterMode(true);
+                        setAuthRole("pembeli");
+                        setShowAuthModal(true);
+                        setAuthError("");
+                        setAuthSuccess("");
+                        // Prefill the notes with selected PO customization!
+                        setSellerNote(`[Demo PO] Menu: ${onboardMenu}, Topping: ${onboardTopping}, PO: ${onboardSchedule} hari` + (onboardFrequency === "mingguan" ? `, Langganan: Mingguan (${onboardDay})` : ""));
+                      }}
+                      className="w-full mt-4 py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-black transition-all shadow-lg hover:shadow-indigo-500/20 active:scale-98 text-center flex items-center justify-center gap-2 uppercase tracking-wider"
+                    >
+                      Daftar Akun & Pesan Pre-Order Ini &rarr;
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* TESTIMONIALS */}
               <div className="space-y-8">
                 <div className="text-center space-y-2">
@@ -2301,6 +2625,78 @@ export default function SecureMultiplatformPlatform() {
                     >
                       Mulai Berbelanja
                     </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* REVENUE GROWTH PREVIEW CHART */}
+              <div className="bg-slate-900/40 p-8 rounded-3xl border border-slate-850 space-y-8 max-w-4xl mx-auto shadow-2xl relative text-left">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-850 pb-4">
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/20 uppercase tracking-widest">Preview Laporan Pendapatan</span>
+                    <h3 className="text-lg font-black text-white uppercase tracking-wider">Keberhasilan Finansial Mitra Dapur</h3>
+                    <p className="text-[11px] text-slate-400 max-w-md">Pertumbuhan omzet riil mitra setelah mengadopsi ekosistem Pre-Order digital dan sistem pengantaran mandiri.</p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-850 text-[10px] font-bold text-slate-400">
+                    <span className="px-3 py-1.5 bg-indigo-650 text-white rounded-lg transition-all">Dapur Bu Ani</span>
+                    <span className="px-3 py-1.5 text-slate-500 rounded-lg">Roti Lestari</span>
+                    <span className="px-3 py-1.5 text-slate-500 rounded-lg">Catering Mandiri</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+                  {/* Left part: Stats (4 cols) */}
+                  <div className="md:col-span-4 space-y-5">
+                    <div className="bg-slate-950/60 p-4.5 rounded-2xl border border-slate-850/80 space-y-1">
+                      <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Pertumbuhan Omzet</span>
+                      <span className="block text-2xl font-black text-emerald-400 flex items-center gap-1.5 leading-none">
+                        +45.6% <TrendingUp className="h-5 w-5 animate-bounce" />
+                      </span>
+                      <span className="block text-[10px] text-slate-450 mt-1 leading-relaxed">Peningkatan penjualan rata-rata dalam waktu 3 bulan pertama pasca migrasi digital.</span>
+                    </div>
+
+                    <div className="bg-slate-950/60 p-4.5 rounded-2xl border border-slate-850/80 space-y-1">
+                      <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Rata-rata Margin</span>
+                      <span className="block text-2xl font-black text-indigo-400 leading-none">32%</span>
+                      <span className="block text-[10px] text-slate-450 mt-1 leading-relaxed">Margin profit sehat berkat model PO mandiri yang mencegah terbuangnya bahan baku.</span>
+                    </div>
+                  </div>
+
+                  {/* Right part: Beautiful Interactive Bar Chart (8 cols) */}
+                  <div className="md:col-span-8 bg-slate-950/60 p-6 rounded-2xl border border-slate-850/80 relative flex flex-col justify-between min-h-[220px]">
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold border-b border-slate-900 pb-2">
+                      <span>TREN PENDAPATAN BULANAN (RP)</span>
+                      <span className="text-indigo-400">AKTIVITAS PRE-ORDER</span>
+                    </div>
+
+                    {/* Bars Container */}
+                    <div className="flex justify-around items-end h-32 pt-4 relative">
+                      {/* Grid Lines */}
+                      <div className="absolute inset-x-0 top-0 border-t border-slate-900/50"></div>
+                      <div className="absolute inset-x-0 top-1/3 border-t border-slate-900/50"></div>
+                      <div className="absolute inset-x-0 top-2/3 border-t border-slate-900/50"></div>
+
+                      {/* Bar 1 */}
+                      <div className="flex flex-col items-center gap-2 w-16 group cursor-pointer relative z-10">
+                        <span className="text-[9px] font-bold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-950 border border-slate-800 px-1.5 py-0.5 rounded shadow-xl -mt-5 absolute top-0">12.5M</span>
+                        <div className="w-8 bg-gradient-to-t from-slate-800 to-slate-700 group-hover:from-indigo-650 group-hover:to-indigo-500 h-16 rounded-t-lg transition-all duration-300 shadow-lg group-hover:scale-y-110"></div>
+                        <span className="text-[10px] font-bold text-slate-500 group-hover:text-white transition-colors">Bulan 1</span>
+                      </div>
+
+                      {/* Bar 2 */}
+                      <div className="flex flex-col items-center gap-2 w-16 group cursor-pointer relative z-10">
+                        <span className="text-[9px] font-bold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-950 border border-slate-800 px-1.5 py-0.5 rounded shadow-xl -mt-5 absolute top-0">15.8M</span>
+                        <div className="w-8 bg-gradient-to-t from-slate-800 to-slate-700 group-hover:from-indigo-650 group-hover:to-indigo-500 h-20 rounded-t-lg transition-all duration-300 shadow-lg group-hover:scale-y-110"></div>
+                        <span className="text-[10px] font-bold text-slate-500 group-hover:text-white transition-colors">Bulan 2</span>
+                      </div>
+
+                      {/* Bar 3 */}
+                      <div className="flex flex-col items-center gap-2 w-16 group cursor-pointer relative z-10">
+                        <span className="text-[9px] font-bold text-white bg-indigo-600 border border-indigo-500 px-1.5 py-0.5 rounded shadow-xl -mt-6 absolute top-0 opacity-100 group-hover:scale-110 transition-all">18.2M</span>
+                        <div className="w-8 bg-gradient-to-t from-indigo-700 to-indigo-500 group-hover:from-indigo-650 group-hover:to-indigo-400 h-24 rounded-t-lg transition-all duration-300 shadow-lg shadow-indigo-500/10 group-hover:scale-y-110 animate-pulse"></div>
+                        <span className="text-[10px] font-bold text-indigo-400 group-hover:text-white transition-colors">Bulan 3</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2799,14 +3195,44 @@ export default function SecureMultiplatformPlatform() {
                               orders.filter(o => o.status === "pending").map(o => (
                                 <div key={o.id} className="py-4 first:pt-0 space-y-3">
                                   <div className="flex justify-between items-start">
-                                    <div>
+                                    <div className="space-y-1">
                                       <span className="text-[9px] font-bold text-slate-500">ORDER ID: #{o.id}</span>
                                       <h5 className="text-xs font-extrabold text-white mt-0.5">Total Harga: Rp {o.total_price.toLocaleString("id-ID")}</h5>
                                       <p className="text-[10px] text-slate-400">Alamat Kirim: {formatAddressText(o.shipping_address)}</p>
+
+                                      {/* Langganan PO Berulang Indicator */}
+                                      {(() => {
+                                        const subInfo = parseSubscriptionInfo(o.notes);
+                                        return subInfo && (
+                                          <div className="bg-emerald-950/50 border border-emerald-500/20 rounded-xl p-2 flex items-center justify-between text-[11px] text-emerald-400 mt-1.5 max-w-sm">
+                                            <span className="flex items-center gap-1.5 font-bold">
+                                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                              Pesanan Langganan PO ({subInfo.frequency})
+                                            </span>
+                                            <span className="bg-emerald-900/60 px-2 py-0.5 rounded-lg border border-emerald-500/10 text-[9px] font-black uppercase">
+                                              Setiap Hari {subInfo.day}
+                                            </span>
+                                          </div>
+                                        );
+                                      })()}
+
+                                      {o.toppings && (
+                                        <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-850 mt-1.5 space-y-0.5 max-w-sm">
+                                          <span className="text-[7px] text-slate-500 font-bold block uppercase leading-none">Pesanan Menu & Topping:</span>
+                                          <span className="text-white text-[10px] font-semibold leading-relaxed block">{o.toppings}</span>
+                                        </div>
+                                      )}
+
+                                      {o.notes && (
+                                        <div className="bg-slate-900/40 p-2.5 rounded-xl border border-slate-850 mt-1 space-y-0.5 max-w-sm">
+                                          <span className="text-[7px] text-slate-500 font-bold block uppercase leading-none">Catatan Pelanggan:</span>
+                                          <span className="text-slate-400 text-[10px] italic leading-relaxed block">"{o.notes}"</span>
+                                        </div>
+                                      )}
                                     </div>
                                     <button
                                       onClick={() => handleConfirmOrder(o.id)}
-                                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow-md flex items-center gap-1"
+                                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow-md flex items-center gap-1 shrink-0"
                                     >
                                       <Check className="h-3.5 w-3.5" /> Terima & Siapkan Makanan
                                     </button>
@@ -2862,6 +3288,111 @@ export default function SecureMultiplatformPlatform() {
                                 </div>
                               </div>
                             ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ==================== PREMIUM FEATURES SECTION FOR MITRA ==================== */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4">
+                      {/* 1. UNIQUE MERCHANT QR CODE CARD */}
+                      <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-900 shadow-xl space-y-5 text-left">
+                        <h4 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-850 pb-3">
+                          <QrCode className="h-4.5 w-4.5 text-indigo-400" /> QR Code Dapur UMKM Fisik
+                        </h4>
+                        <div className="flex flex-col sm:flex-row items-center gap-6 bg-slate-950/60 p-4.5 rounded-xl border border-slate-850/80">
+                          {/* Generated QR Code Image */}
+                          <div className="bg-white p-3 rounded-2xl shadow-inner shrink-0 relative group">
+                            <img 
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(typeof window !== "undefined" ? `${window.location.origin}/?merchant=${myMerchant.id}` : `https://umkm-digital-beta.vercel.app/?merchant=${myMerchant.id}`)}`} 
+                              alt="Merchant QR Code" 
+                              className="w-[140px] h-[140px] object-contain"
+                            />
+                            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all rounded-2xl flex items-center justify-center p-2">
+                              <span className="text-[10px] text-white font-bold text-center">Scan Langsung ke Menu Dapur Anda!</span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3 text-xs leading-relaxed">
+                            <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 uppercase tracking-wider">Etalase Cetak Siap Saji</span>
+                            <h5 className="font-bold text-white text-sm">Pajang QR di Toko Fisik Anda</h5>
+                            <p className="text-slate-400 text-[11px]">
+                              Pelanggan dapat memindai QR Code ini untuk langsung membuka daftar menu Dapur Anda secara otomatis tanpa perlu mencari secara manual.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(typeof window !== "undefined" ? `${window.location.origin}/?merchant=${myMerchant.id}` : `https://umkm-digital-beta.vercel.app/?merchant=${myMerchant.id}`)}`;
+                                window.open(qrUrl, "_blank");
+                                showPremiumAlert("Membuka QR Code resolusi tinggi di tab baru. Anda dapat mencetaknya langsung!", "Sukses");
+                              }}
+                              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-[10px] transition-all flex items-center gap-1.5 active:scale-95"
+                            >
+                              <Upload className="h-3 w-3 rotate-180" /> Buka QR Siap Cetak
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 2. REFERRAL PROGRAM CARD */}
+                      <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-900 shadow-xl space-y-5 text-left">
+                        <h4 className="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-850 pb-3">
+                          <UserPlus className="h-4.5 w-4.5 text-emerald-400" /> Program Kemitraan & Referral
+                        </h4>
+                        
+                        <div className="space-y-4 text-xs">
+                          <p className="text-slate-400 text-[11px] leading-relaxed">
+                            Ajak rekan UMKM kuliner lainnya bergabung bersama **UMKM Digital**! Dapatkan pembagian komisi kompensasi sebesar <span className="font-extrabold text-emerald-400">2%</span> dari total volume penjualan mereka selamanya.
+                          </p>
+
+                          {/* Referral link copy field */}
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase">Tautan Referral Anda:</label>
+                            <div className="flex bg-slate-950 rounded-xl border border-slate-850 overflow-hidden pr-1.5 py-1 pl-3.5 items-center justify-between shadow-inner">
+                              <span className="text-[10px] font-mono text-slate-400 select-all truncate max-w-[200px] sm:max-w-xs">
+                                {typeof window !== "undefined" ? `${window.location.origin}/?ref=${myMerchant.name.replace(/\s+/g, "")}` : `https://umkm-digital-beta.vercel.app/?ref=${myMerchant.id}`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const refLink = typeof window !== "undefined" ? `${window.location.origin}/?ref=${myMerchant.name.replace(/\s+/g, "")}` : `https://umkm-digital-beta.vercel.app/?ref=${myMerchant.id}`;
+                                  navigator.clipboard.writeText(refLink);
+                                  showPremiumAlert(`Tautan referral Anda berhasil disalin ke papan klip! Bagi link ini untuk mendapatkan keuntungan 2% komisi.`, "Sukses");
+                                }}
+                                className="p-1.5 bg-slate-900 hover:bg-slate-850 text-slate-300 hover:text-white rounded-lg border border-slate-800 transition-all flex items-center justify-center"
+                                title="Salin Tautan"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Referral stats */}
+                          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-850/80 space-y-2.5">
+                            <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold border-b border-slate-900 pb-1.5">
+                              <span>MITRA DIUNDANG (REFERRAL)</span>
+                              <span className="text-emerald-400">SALDO KOMISI</span>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center text-[11px]">
+                                <div className="text-slate-350">
+                                  <span className="font-bold block text-white">Dapur Roti Enak</span>
+                                  <span className="text-[9px] text-slate-500">Bergabung 2 minggu lalu</span>
+                                </div>
+                                <span className="font-extrabold text-emerald-400">+Rp 142.000</span>
+                              </div>
+                              <div className="flex justify-between items-center text-[11px]">
+                                <div className="text-slate-350">
+                                  <span className="font-bold block text-white">Kue Basah Lestari</span>
+                                  <span className="text-[9px] text-slate-500">Bergabung 1 bulan lalu</span>
+                                </div>
+                                <span className="font-extrabold text-emerald-400">+Rp 103.000</span>
+                              </div>
+                            </div>
+                            <div className="flex justify-between items-center pt-2 border-t border-slate-900 text-xs font-black">
+                              <span className="text-white uppercase tracking-wider">Total Hasil Referral</span>
+                              <span className="text-emerald-400 text-sm">Rp 245.000</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -3166,6 +3697,36 @@ export default function SecureMultiplatformPlatform() {
                             <h5 className="text-sm font-extrabold text-white">Total: Rp {o.total_price.toLocaleString("id-ID")}</h5>
                             <p className="text-[10px] text-slate-400 truncate">Alamat: {formatAddressText(o.shipping_address)}</p>
 
+                            {/* Langganan PO Berulang Indicator */}
+                            {(() => {
+                              const subInfo = parseSubscriptionInfo(o.notes);
+                              return subInfo && (
+                                <div className="bg-emerald-950/50 border border-emerald-500/20 rounded-xl p-2.5 flex items-center justify-between text-xs text-emerald-400 mt-1">
+                                  <span className="flex items-center gap-1.5 font-bold">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    Langganan PO ({subInfo.frequency})
+                                  </span>
+                                  <span className="bg-emerald-900/60 px-2 py-0.5 rounded-lg border border-emerald-500/10 text-[10px] font-black uppercase">
+                                    Setiap Hari {subInfo.day}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+
+                            {o.toppings && (
+                              <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-850 mt-1.5 space-y-0.5">
+                                <span className="text-[7px] text-slate-500 font-bold block uppercase leading-none">Hidangan & Toppings:</span>
+                                <span className="text-white text-[10px] font-medium leading-relaxed block">{o.toppings}</span>
+                              </div>
+                            )}
+
+                            {o.notes && (
+                              <div className="bg-slate-900/40 p-2.5 rounded-xl border border-slate-850 mt-1 space-y-0.5">
+                                <span className="text-[7px] text-slate-500 font-bold block uppercase leading-none">Catatan Pembeli:</span>
+                                <span className="text-slate-400 text-[10px] italic leading-relaxed block">"{o.notes}"</span>
+                              </div>
+                            )}
+
                             {/* GPS LIVE TRACKING MAP (Simulasi GPS Seluler Premium) */}
                             {o.status === "dikirim" && (
                               <div className="w-full bg-slate-900/60 border border-indigo-500/20 rounded-xl p-3 space-y-2.5 my-2">
@@ -3188,7 +3749,7 @@ export default function SecureMultiplatformPlatform() {
                                       </div>
                                       <span className="text-[6px] font-extrabold text-emerald-400 mt-0.5 block">DAPUR</span>
                                     </div>
-
+ 
                                     {/* Destination Marker */}
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 text-center z-10 flex flex-col items-center">
                                       <div className="p-1 bg-indigo-500/20 border border-indigo-400/50 rounded-lg text-indigo-400">
@@ -3196,7 +3757,7 @@ export default function SecureMultiplatformPlatform() {
                                       </div>
                                       <span className="text-[6px] font-extrabold text-indigo-400 mt-0.5 block">TUJUAN</span>
                                     </div>
-
+ 
                                     {/* Dotted Path */}
                                     <div className="absolute left-[36px] right-[36px] top-1/2 -translate-y-1/2 h-0.5 border-t border-dashed border-slate-850"></div>
                                     
@@ -3205,18 +3766,19 @@ export default function SecureMultiplatformPlatform() {
                                       className="absolute left-[36px] top-1/2 -translate-y-1/2 h-0.5 bg-gradient-to-r from-emerald-500 to-indigo-500 transition-all duration-1000 ease-in-out"
                                       style={{ width: `calc(${Math.min(100, Math.max(0, (gpsProgress[o.id] || 0.05) * 100))}% - 36px)` }}
                                     ></div>
-
-                                    {/* Moving Courier */}
+ 
+                                    {/* Moving Courier with Crown */}
                                     <div 
                                       className="absolute top-1/2 -translate-y-1/2 z-20 flex flex-col items-center transition-all duration-1000 ease-in-out"
                                       style={{ left: `calc(36px + ${Math.min(85, Math.max(0, (gpsProgress[o.id] || 0.05) * 85))}%)` }}
                                     >
-                                      <div className="p-1 bg-amber-500 text-slate-950 rounded-full border border-white shadow-lg animate-pulse">
+                                      <span className="text-[8px] leading-none mb-0.5 animate-bounce">👑</span>
+                                      <div className="p-1 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 rounded-full border border-white shadow-lg animate-pulse flex items-center justify-center">
                                         <Truck className="h-3 w-3" />
                                       </div>
-                                      <span className="text-[5px] font-extrabold text-amber-400 bg-slate-950 px-1 rounded border border-slate-800 mt-0.5 whitespace-nowrap">KURIR</span>
+                                      <span className="text-[5px] font-bold text-amber-400 bg-slate-950 px-1 rounded border border-slate-850 mt-0.5 whitespace-nowrap">Kurir Teladan</span>
                                     </div>
-
+ 
                                     {/* GPS Telemetry */}
                                     <div className="absolute bottom-1 right-2 text-[5px] text-slate-500 font-mono">
                                       LAT: -6.2146 | LON: 106.8451 | SPD: 24 km/h
@@ -3224,6 +3786,29 @@ export default function SecureMultiplatformPlatform() {
                                   </div>
                                 )}
 
+                                {/* Informasi Kurir & Rating */}
+                                <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-3 my-2 text-left">
+                                  <div className="flex items-center gap-2">
+                                    <div className="relative shrink-0">
+                                      <div className="w-8 h-8 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-bold text-white uppercase">
+                                        JD
+                                      </div>
+                                      <div className="absolute -top-1.5 -right-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 p-0.5 rounded-full shadow border border-white animate-pulse">
+                                        ★
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-bold text-white">John Doe</span>
+                                        <span className="bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-400 text-[8px] font-black px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-0.5 animate-pulse">
+                                          👑 Kurir Teladan
+                                        </span>
+                                      </div>
+                                      <span className="text-[9px] text-slate-500 font-semibold block leading-none mt-0.5">Rating: ⭐ 4.9 (50+ POD Selesai)</span>
+                                    </div>
+                                  </div>
+                                </div>
+ 
                                 {/* Telemetry Details */}
                                 <div className="bg-slate-950 p-2 rounded-lg border border-slate-850 flex justify-between items-center text-[10px]">
                                   <div className="flex items-center gap-1.5">
@@ -3332,6 +3917,28 @@ export default function SecureMultiplatformPlatform() {
                               <span className="text-[9px] font-bold bg-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20">📍 Tugas Terdekat (1.2 km)</span>
                               <h5 className="text-xs font-extrabold text-white mt-1.5">Penjemputan: {merchantObj ? merchantObj.name : "Dapur UMKM Mitra"}</h5>
                               <p className="text-[10px] text-slate-400">Tujuan: {formatAddressText(o.shipping_address)}</p>
+
+                              {/* Langganan PO Berulang Indicator */}
+                              {(() => {
+                                const subInfo = parseSubscriptionInfo(o.notes);
+                                return subInfo && (
+                                  <div className="bg-emerald-950/40 border border-emerald-500/20 rounded-lg p-1.5 flex items-center justify-between text-[10px] text-emerald-400 mt-1 max-w-xs">
+                                    <span className="flex items-center gap-1 font-bold">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                      Langganan PO ({subInfo.frequency})
+                                    </span>
+                                    <span className="text-[9px] font-black uppercase ml-2">
+                                      Setiap {subInfo.day}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+
+                              {o.toppings && (
+                                <div className="text-[10px] text-slate-400 truncate max-w-xs mt-1">
+                                  📦 {o.toppings}
+                                </div>
+                              )}
                             </div>
                             <button onClick={() => handleAcceptDelivery(o.id)} className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5">
                               <Truck className="h-4 w-4" /> Ambil & Antar Tugas
@@ -3360,6 +3967,29 @@ export default function SecureMultiplatformPlatform() {
                               <h5 className="font-bold text-white text-sm">Pengantaran #{o.id}</h5>
                               <p className="text-xs text-slate-400">Dari: <span className="font-bold text-slate-200">{merchantObj ? merchantObj.name : "Dapur UMKM"}</span></p>
                               <p className="text-xs text-slate-400">Tujuan: <span className="text-indigo-400 font-medium">{formatAddressText(o.shipping_address)}</span></p>
+
+                              {/* Langganan PO Berulang Indicator */}
+                              {(() => {
+                                const subInfo = parseSubscriptionInfo(o.notes);
+                                return subInfo && (
+                                  <div className="bg-emerald-950/40 border border-emerald-500/20 rounded-lg p-1.5 flex items-center justify-between text-[10px] text-emerald-400 mt-1 max-w-xs">
+                                    <span className="flex items-center gap-1 font-bold">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                      Langganan PO ({subInfo.frequency})
+                                    </span>
+                                    <span className="text-[9px] font-black uppercase ml-2">
+                                      Setiap {subInfo.day}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+
+                              {o.toppings && (
+                                <div className="text-[11px] text-slate-200 mt-1.5 bg-slate-950/60 p-2 rounded-lg border border-slate-850 max-w-md">
+                                  <span className="text-[8px] text-slate-500 font-bold block uppercase leading-none mb-0.5">Detail Paket Hidangan:</span>
+                                  {o.toppings}
+                                </div>
+                              )}
                               
                               {/* Courier's Dynamic GPS Live Tracking Map */}
                               {leafletLoaded && (
@@ -3898,6 +4528,63 @@ export default function SecureMultiplatformPlatform() {
                   </label>
                 ))}
               </div>
+            </div>
+
+            {/* Langganan Pre-Order Berulang */}
+            <div className="space-y-3 bg-slate-950/40 p-3 rounded-2xl border border-slate-850">
+              <div className="flex justify-between items-center">
+                <label className="block text-[10px] font-bold text-indigo-400 uppercase tracking-wide flex items-center gap-1.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Program Langganan PO Berulang (Opsional)
+                </label>
+                <span className="text-[9px] bg-emerald-950/80 text-emerald-400 px-2 py-0.5 rounded-full font-bold border border-emerald-900/50">Hemat 5%</span>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: "sekali", label: "Sekali Jalan" },
+                  { value: "mingguan", label: "Mingguan" },
+                  { value: "dua_mingguan", label: "2 Mingguan" }
+                ].map((freq) => (
+                  <button
+                    key={freq.value}
+                    type="button"
+                    onClick={() => setSubFrequency(freq.value as any)}
+                    className={`py-2 px-1 text-center rounded-xl border text-[11px] font-medium transition-all ${
+                      subFrequency === freq.value
+                        ? "bg-emerald-600/10 border-emerald-500 text-emerald-400 font-bold"
+                        : "bg-slate-900 border-slate-850 text-slate-450 hover:text-slate-200"
+                    }`}
+                  >
+                    {freq.label}
+                  </button>
+                ))}
+              </div>
+
+              {subFrequency !== "sekali" && (
+                <div className="space-y-1.5 animate-fadeIn">
+                  <label className="block text-[9px] font-bold text-slate-500 uppercase">Hari Pengantaran:</label>
+                  <div className="grid grid-cols-4 gap-1">
+                    {["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"].map((day) => (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => setSubDay(day)}
+                        className={`py-1 text-center rounded-lg border text-[10px] transition-all ${
+                          subDay === day
+                            ? "bg-emerald-600/20 border-emerald-500 text-white font-bold"
+                            : "bg-slate-900/50 border-slate-850 text-slate-450 hover:text-slate-300"
+                        }`}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-500 leading-relaxed pt-1">
+                    * Pesanan Anda akan dikirim otomatis setiap hari <span className="text-emerald-400 font-semibold">{subDay}</span>.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Notes */}
