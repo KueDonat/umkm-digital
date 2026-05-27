@@ -2327,8 +2327,8 @@ export default function SecureMultiplatformPlatform() {
             </div>
           ) : (
             /* Floating Auth Modal Overlay */
-            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="max-w-md w-full bg-slate-900/90 p-8 rounded-2xl border border-slate-800 shadow-2xl space-y-6 relative animate-fadeIn">
+            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm overflow-y-auto flex justify-center p-4 py-8 md:py-12">
+              <div className="max-w-md w-full bg-slate-900/90 p-8 rounded-2xl border border-slate-800 shadow-2xl space-y-6 relative animate-fadeIn my-auto">
                 <button
                   onClick={() => setShowAuthModal(false)}
                   className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-950 border border-slate-850 hover:border-indigo-500 text-slate-400 hover:text-indigo-400 transition-all active:scale-95"
@@ -3601,8 +3601,8 @@ export default function SecureMultiplatformPlatform() {
 
       {/* ==================== F. MODAL BUYER PREVIEW FOTO BUKTI (POD) ==================== */}
       {previewPhotoUrl && (
-        <div className="fixed inset-0 z-50 bg-slate-950/90 flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-slate-900 border border-slate-850 rounded-3xl p-5 space-y-4 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 bg-slate-950/90 overflow-y-auto flex justify-center p-4 py-8">
+          <div className="max-w-md w-full bg-slate-900 border border-slate-850 rounded-3xl p-5 space-y-4 shadow-2xl relative my-auto">
             <button
               onClick={() => setPreviewPhotoUrl(null)}
               className="absolute top-4 right-4 p-2 bg-slate-950 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white"
@@ -3791,8 +3791,8 @@ export default function SecureMultiplatformPlatform() {
       {/* ==================== PREMIUM OVERLAYS & MODALS ==================== */}
       {/* 1. Custom Glassmorphic Toast/Alert/Confirm Modal */}
       {customAlert && customAlert.show && (
-        <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-slate-900/95 border border-slate-850 rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl p-6 space-y-4 animate-scaleUp text-slate-100 relative">
+        <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-md overflow-y-auto flex justify-center p-4 py-8">
+          <div className="bg-slate-900/95 border border-slate-850 rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl p-6 space-y-4 animate-scaleUp text-slate-100 relative my-auto">
             <div className="flex items-center gap-3 border-b border-slate-850 pb-3">
               <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20">
                 <AlertTriangle className="h-5 w-5 animate-pulse text-indigo-405" />
@@ -3826,8 +3826,8 @@ export default function SecureMultiplatformPlatform() {
 
       {/* 2. Product Customization Modal */}
       {selectedProductForOrder && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-5 animate-scaleUp">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm overflow-y-auto flex justify-center p-4 py-8">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-5 animate-scaleUp my-auto">
             <div className="flex justify-between items-center border-b border-slate-850 pb-3">
               <h4 className="font-bold text-white text-sm flex items-center gap-2">
                 <Plus className="h-4.5 w-4.5 text-indigo-400" />
@@ -3938,8 +3938,8 @@ export default function SecureMultiplatformPlatform() {
 
       {/* 3. Rating & Ulasan Resto + Kurir Modal */}
       {ratingOrder && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <form onSubmit={handleRateOrderSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-5 animate-scaleUp">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm overflow-y-auto flex justify-center p-4 py-8">
+          <form onSubmit={handleRateOrderSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-5 animate-scaleUp my-auto">
             <div className="flex justify-between items-center border-b border-slate-850 pb-3">
               <h4 className="font-bold text-white text-sm flex items-center gap-2">
                 <Sparkles className="h-4.5 w-4.5 text-amber-400 animate-pulse" />
@@ -4024,8 +4024,8 @@ export default function SecureMultiplatformPlatform() {
 
       {/* 4. Courier Rating to Buyer Modal */}
       {ratingBuyerOrder && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <form onSubmit={handleRateBuyerSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-5 animate-scaleUp">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm overflow-y-auto flex justify-center p-4 py-8">
+          <form onSubmit={handleRateBuyerSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-5 animate-scaleUp my-auto">
             <div className="flex justify-between items-center border-b border-slate-850 pb-3">
               <h4 className="font-bold text-white text-sm flex items-center gap-2">
                 <User className="h-4.5 w-4.5 text-indigo-400 animate-pulse" />
@@ -4080,8 +4080,8 @@ export default function SecureMultiplatformPlatform() {
 
       {/* 5. Edit Menu Modal */}
       {editingProduct && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <form onSubmit={handleEditMenuSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-4 animate-scaleUp">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm overflow-y-auto flex justify-center p-4 py-8">
+          <form onSubmit={handleEditMenuSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-4 animate-scaleUp my-auto">
             <div className="flex justify-between items-center border-b border-slate-850 pb-3">
               <h4 className="font-bold text-white text-sm flex items-center gap-2">
                 <Edit3 className="h-4.5 w-4.5 text-indigo-400" />
@@ -4287,8 +4287,8 @@ export default function SecureMultiplatformPlatform() {
 
       {/* 6. Edit Restaurant Profile Modal */}
       {isEditingMerchant && myMerchant && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <form onSubmit={handleEditMerchantSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-4 animate-scaleUp">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm overflow-y-auto flex justify-center p-4 py-8">
+          <form onSubmit={handleEditMerchantSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl p-6 space-y-4 animate-scaleUp my-auto">
             <div className="flex justify-between items-center border-b border-slate-850 pb-3">
               <h4 className="font-bold text-white text-sm flex items-center gap-2">
                 <Store className="h-4.5 w-4.5 text-indigo-400" />
